@@ -30,7 +30,7 @@ N = 100
 # page = bs(response.content, 'html.parser')
 # print(page.prettify())
 hkex_url = 'https://www1.hkexnews.hk'
-endpoint_url = hkex_url + '/search/titleSearchServlet.do'
+endpoint = hkex_url + '/search/titleSearchServlet.do'
 
 payloads = {
     'sortDir': '0',
@@ -49,7 +49,7 @@ payloads = {
     'rowRange': N,
     'lang': 'EN'
 }
-response = requests.get(endpoint_url, params=payloads)
+response = requests.get(endpoint, params=payloads)
 site_json = json.loads(response.text)
 
 max_result = site_json['recordCnt']
@@ -57,13 +57,18 @@ loaded_result = site_json['loadedRecord']
 
 if loaded_result < max_result:
     payloads['rowRange'] = max_result
-    response = requests.get(endpoint_url, params=payloads)
+    response = requests.get(endpoint, params=payloads)
     site_json = json.loads(response.text)
 
 results = json.loads(site_json['result'])
+links = []
 for result in results:
     for k, v in result.items():
         print(f'{k} : {html.unescape(v)}')
+        if k == 'FILE_LINK':
+            links.append(v)
     print('====================')
 
+
 print(f'== {len(results)} results are loaded. ==')
+print(links)
