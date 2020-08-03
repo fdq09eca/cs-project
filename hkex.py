@@ -39,9 +39,9 @@ def print_results(results):
 
 def query(from_date, to_date=datetime.date.today().strftime('%Y%m%d')) -> Generator[object, None, None]:
     '''
-    **It is a decorator function.**
+    **decorator function.**
     It loads the params of getting 500 companies' annual reports per request to hkexnews API.
-    It return a generator
+    It returns a generator
     '''
     hkex_url = 'https://www1.hkexnews.hk'
     endpoint = hkex_url + '/search/titleSearchServlet.do'
@@ -96,9 +96,9 @@ def get_pdf(url: str) -> object:
     '''
     get the pdf file from url
     '''
-    response = requests.get(url)
-    open_pdf_file = io.BytesIO(response.content)
     try:
+        response = requests.get(url)
+        open_pdf_file = io.BytesIO(response.content)
         pdf = PyPDF2.PdfFileReader(open_pdf_file, strict=False)
         return pdf
     except PyPDF2.utils.PdfReadError:
@@ -118,15 +118,10 @@ def get_toc(pdf: object) -> dict:
     '''
     get the TOC with page number
     '''
-    try:
-        outlines = pdf.getOutlines()
-        outlines = flatten(outlines)
-        if not outlines:
-            logging.warning('Outline is unavailable.')
-    except AttributeError:
-        logging.warning(
-            f'Input type: {type(pdf)}. Not PdfReadObject, return None')
-        return None
+    outlines = pdf.getOutlines()
+    outlines = flatten(outlines)
+    if not outlines:
+        logging.warning('Outline is unavailable.')
 
     outlines, next_outlines = itertools.tee(outlines, 2)
     next_outlines = itertools.chain(
@@ -158,18 +153,70 @@ def get_toc(pdf: object) -> dict:
     return toc
 
 
+def get_pages_by_outline(toc: dict, title_pattern: str) -> tuple:
+    '''
+    search outline title pattern, return the respective outline page range in list. 
+    '''
+    pageRange = []
+    for outline, page_range in toc.items():
+        if re.search(title_pattern, outline, flags=re.IGNORECASE):
+            pageRange.append(page_range.split(' - '))
+    if len(pageRange) != 1:
+        logging.debug(f'{len(pageRange)} pair of page range is found.')
+        return None
+    from_page, to_page = pageRange[0]
+    return from_page, to_page
+
+
+def get_pages_by_page_search(pdf, keywords_pattern):
+    '''
+    search page by keywords pattern, return the respective page range in list. 
+    '''
+    pageRange = []
+    pages = pdf.getNumPages()
+    for p in range(pages):
+        page = pdf.getPage(p)
+        page_txt = re.sub('\n+', '', page.extractText())
+        if re.search(keywords_pattern, page_txt, flags=re.IGNORECASE):
+            pageRange.append(p)
+    logging.info(f'{keywords_pattern} found in pages {pageRange}')
+    if pageRange:
+        from_page, to_page = min(pageRange), max(pageRange)
+        return from_page, to_page
+    return None
+
+
 def main():
-    logging.basicConfig(level=logging.DEBUG, filename=f'log-{os.path.splitext(__file__)[0]}.txt')
+    logging.basicConfig(level=logging.DEBUG,
+                        filename=f'log-{os.path.splitext(__file__)[0]}.txt')
     for data in get_data():
         pdf = get_pdf(data.file_link)
+        if not pdf:
+            continue
         toc = get_toc(pdf)
+        title_pattern = r"independent auditor['s]?( report)?"
+        if get_pages_by_outline(toc, title_pattern):
+            from_page, to_page = get_pages_by_outline(toc, title_pattern)
+        else:
+            from_page, to_page = get_pages_by_page_search(pdf, title_pattern)
+        print(f"from_page: {from_page}, to_page: {to_page}")
+        ## some pdf are scanned image which can't be searched by text..
+
+        # get auditor
+            # if outlines available
+            # locate independent auditor report last page by toc
+            # else:
+            # search keywords by page
+            # get the max from page range
+            # search auditor name pattern from the max page for n time.
+            # get auditor name by the last element
 
 
-# main()
+main()
 # logging.basicConfig(level=logging.DEBUG)
-logging.basicConfig(level=logging.DEBUG, filename=f'log-{os.path.splitext(__file__)[0]}.txt')
-url = '/listedco/listconews/sehk/2020/0730/2020073001154.pdf'
-url = 'https://www1.hkexnews.hk' + url
+# logging.basicConfig(level=logging.DEBUG, filename=f'log-{os.path.splitext(__file__)[0]}.txt')
+# url = '/listedco/listconews/sehk/2020/0730/2020073001154.pdf'
+# url = 'https://www1.hkexnews.hk' + url
 
-pdf = get_pdf(url)
-get_toc(pdf)
+# pdf = get_pdf(url)
+# get_toc(pdf)

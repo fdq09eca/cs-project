@@ -121,7 +121,7 @@ def search_audit_report_by_page(url):
     '''
     pdf = get_pdf(url)
     pages = pdf.getNumPages()
-    iar = "INDEPENDENT AUDITOR'S REPORT", []
+    iar, il = r"independent auditor['s]?( report)?", []
     kam, kl = "KEY AUDIT MATTERS", []
     for p in range(pages):
         page = pdf.getPage(p)
@@ -129,11 +129,13 @@ def search_audit_report_by_page(url):
 
         if re.search(iar, page_txt, flags=re.IGNORECASE):
             il.append(p)
+            # print(page_txt)
 
         if re.search(kam, page_txt, flags=re.IGNORECASE):
             kl.append(p)
     print(f'found {iar}: {len(il)} times, in page {il}')
     print(f'found {kam}: {len(kl)} times, in page {kl}')
+    print(url)
 
 
 def get_outline_pages(toc: dict, title_pattern: str) -> list:
@@ -146,12 +148,21 @@ def get_outline_pages(toc: dict, title_pattern: str) -> list:
 # url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf' # outline unavaiable
 
 
-url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800870.pdf'
+url = 'https://www1.hkexnews.hk/'
+url = url + '/listedco/listconews/sehk/2020/0731/2020073100689.pdf'
 pdf = get_pdf(url)
-toc = get_toc(pdf)
-title_pattern = r"independent auditor['s]?( report)?"
-from_page, to_page = get_outline_pages(toc, title_pattern)
-print(from_page, to_page)
+
+for i in range(10):
+    page = pdf.getPage(i)
+    page_txt = re.sub('\n+', '', page.extractText())
+    print(page_txt)
+
+# search_audit_report_by_page(url)
+
+# toc = get_toc(pdf)
+# title_pattern = r"independent auditor['s]?( report)?"
+# from_page, to_page = get_outline_pages(toc, title_pattern)
+# print(from_page, to_page)
 
 # S = ["KEY AUDIT MATTERS", "KEY AUDIT MATTER"]
 # pattern = r'KEY AUDIT MATTER[S]?'
