@@ -31,19 +31,19 @@ This project is requested by [Chong Sing Holding FinTech Group Limited](http://w
 
 ### get_data()
 
-- [ ] get data from hkex
-- [ ] get the annual report `pdf`
+- [x] get data from hkex
+- [x] get the annual report `pdf`
 
 ### get_audit_firm()
 
-- [ ] if outline available
-  - [ ] get the outline title and page range (from page, to page)
-- [ ] else:
-  - [ ] for each page
-    - [ ] append page number to a list if searched `independent auditor report` on that page
-- [ ] get the page range (from-to) of `independent auditor report`
-- [ ] get the last page of the auditor report
-- [ ] get audit firm_name
+- [x] if outline available
+  - [x] get the outline title and page range (from page, to page)
+- [x] else:
+  - [x] for each page
+    - [x] append page number to a list if searched `independent auditor report` on that page
+- [x] get the page range (from-to) of `independent auditor report`
+- [x] get the last page of the auditor report
+- [o] **get audit firm_name**
 - [ ] save the `pdf` to respective audit firm folder
 
 ### get_kam_occurrence()
@@ -133,11 +133,12 @@ audit firm: The Board has delegated to the Audit and Risk Management Committee w
    1. create a `.csv` for capture the result. with the following variable
       1. stock number
       2. stock name
-      3. auditor result
+      3. auditor name result
       4. from_page
       5. to_page
       6. link
       7. page_text.
 2. improve `get_pageRange(.)` or `get_pages_by_page_search(.)` impose a condition that the `pageRange list` element (`int`) should not be too far from each other.
-3. use fuzzy string match to boost the accuracy
-4. use Logistic regression or NLP to learn..
+3. improve the regex pattern, e.g. `r'.*\.((?P<auditor>[A-Z].*?):?( LLP)?)[ ?Certified ]?Public Accountants'`
+4. use fuzzy string match to boost the accuracy
+5. use Logistic regression or NLP to learn..
