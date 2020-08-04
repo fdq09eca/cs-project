@@ -122,6 +122,11 @@ audit firm:  On 22 March 2019, the Audit Committee convened an on-site meeting, 
 audit firm: 8 million was paid/payable to Deloitte  ed  found on page: 91
 ```
 
+```
+search by page!
+audit firm: The Board has delegated to the Audit and Risk Management Committee with written terms of reference prepared according to the relevant requirements of the Articles of Association, the Company Law of the PRC, the Listing Rules, A Guide for Effective Audit Committees published by the Hong Kong Institute of found on page: 136
+```
+
 ### Strategy
 
 1. Capture error type
@@ -133,5 +138,6 @@ audit firm: 8 million was paid/payable to Deloitte  ed  found on page: 91
       5. to_page
       6. link
       7. page_text.
-2. use fuzzy string match to boost the accuracy
-3. use Logistic regression or NLP to learn..
+2. improve `get_pageRange(.)` or `get_pages_by_page_search(.)` impose a condition that the `pageRange list` element (`int`) should not be too far from each other.
+3. use fuzzy string match to boost the accuracy
+4. use Logistic regression or NLP to learn..
