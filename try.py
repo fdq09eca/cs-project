@@ -148,14 +148,14 @@ def get_outline_pages(toc: dict, title_pattern: str) -> list:
 # url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf' # outline unavaiable
 
 
-url = 'https://www1.hkexnews.hk/'
-url = url + '/listedco/listconews/sehk/2020/0731/2020073100689.pdf'
-pdf = get_pdf(url)
+# url = 'https://www1.hkexnews.hk/'
+# url = url + '/listedco/listconews/sehk/2020/0731/2020073100689.pdf'
+# pdf = get_pdf(url)
 
-for i in range(10):
-    page = pdf.getPage(i)
-    page_txt = re.sub('\n+', '', page.extractText())
-    print(page_txt)
+# for i in range(10):
+#     page = pdf.getPage(i)
+#     page_txt = re.sub('\n+', '', page.extractText())
+#     print(page_txt)
 
 # search_audit_report_by_page(url)
 
@@ -169,3 +169,24 @@ for i in range(10):
 # S = ["independent auditors aa', independent auditor's report, independent auditor report"]
 # pattern = r"independent auditor['s]?( report)?"
 # print([i for i in S if re.search(pattern, i, flags=re.I)])
+pageRange = [1, 2, 3, 4, 5, 6]
+
+
+def get_pageRange(pageRange, from_to):
+    if from_to == 'from':
+        try:
+            if min(pageRange) == 1 or min(pageRange) == 2:
+                return get_pageRange(pageRange[1:], from_to)
+        except ValueError:
+            return None
+        return min(pageRange)
+    elif from_to == 'to':
+        try:
+            if max(pageRange) == 1 or max(pageRange) == 2:
+                return get_pageRange(pageRange[:-1], from_to)
+        except ValueError:
+            return None
+        return max(pageRange)
+
+print(get_pageRange(pageRange, 'from'))
+print(get_pageRange(pageRange, 'to'))

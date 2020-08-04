@@ -11,85 +11,11 @@ import datetime
 import json
 from collections import namedtuple
 from typing import Generator
-import requests
 import PyPDF2
 import io
 import itertools
 import logging
-from functools import wraps
-
-
-def print_results(results):
-    '''
-    **It is a decorator function**
-    it prints out the results for API response
-    '''
-    def wrapper(*args, **kwargs):
-        _results = results(*args, **kwargs)
-        counter = 0
-        for result in _results:
-            counter += 1
-            for k, v in dict(result._asdict()).items():
-                print(f'{k} : {v}')
-            print('====================')
-        print(f'== {counter} results are loaded. ==')
-
-        return _results
-    return wrapper
-
-
-def yearsago(years, from_date=datetime.datetime.now()):
-    try:
-        return from_date.replace(year=from_date.year - years)
-    except ValueError:
-        # Must be 2/29!
-        assert from_date.month == 2 and from_date.day == 29  # can be removed
-        return from_date.replace(month=2, day=28, year=from_date.year-years)
-
-
-def query(from_date, to_date=datetime.date.today()) -> Generator[object, None, None]:
-    '''
-    **decorator function.**
-    It loads the params of getting 500 companies' annual reports per request to hkexnews API.
-    It returns a generator
-    '''
-    hkex_url = 'https://www1.hkexnews.hk'
-    endpoint = hkex_url + '/search/titleSearchServlet.do'
-
-    payloads = {
-        'sortDir': '0',
-        'sortByOptions': 'DateTime',
-        'category': '0',
-        'market': 'SEHK',
-        'stockId': '-1',
-        'documentType': '-1',
-        'fromDate': from_date,
-        'toDate': to_date.strftime('%Y%m%d'),
-        'title': '',
-        'searchType': '1',
-        't1code': '40000',
-        't2Gcode': '-2',
-        't2code': '40100',
-        'rowRange': '100',
-        'lang': 'EN'
-    }
-    over_a_year = datetime.datetime.strptime(from_date, '%Y%m%d') < datetime.datetime.strptime(
-        yearsago(1, to_date).strftime("%Y%m%d"), '%Y%m%d')
-    if over_a_year:
-        raise ValueError(
-            f'Can only query from {datetime.datetime.strftime(yearsago(1), "%Y%m%d")}')
-
-    def Inner(call_api):
-        def wrapper(*args, **kwargs):
-            return (i for i in call_api(endpoint=endpoint, payloads=payloads))
-        return wrapper
-    return Inner
-
-
-def data_decoder(data):
-    data = {k.lower(): html.unescape(v) for k, v in data.items()}
-    data['file_link'] = "https://www1.hkexnews.hk" + data['file_link']
-    return namedtuple('data', data.keys())(*data.values())
+from helper import *
 
 
 @query(from_date='20190804')
@@ -119,14 +45,6 @@ def get_pdf(url: str) -> object:
     except PyPDF2.utils.PdfReadError:
         logging.warning(f'PdfReadError occur, check {url}')
         return None
-
-
-def flatten(li: list) -> list:
-    '''
-    helper: flatten a irregular list recursively;
-    for flattening multiple levels of outlines.
-    '''
-    return sum(map(flatten, li), []) if isinstance(li, list) else [li]
 
 
 def get_toc(pdf: object) -> dict:
@@ -180,53 +98,63 @@ def get_pages_by_outline(toc: dict, title_pattern: str) -> tuple:
         logging.debug(f'{len(pageRange)} pair of page range is found.')
         return None
     from_page, to_page = pageRange[0]
-    return from_page, to_page
+    return int(from_page), int(to_page)
 
 
 def get_pages_by_page_search(pdf, keywords_pattern):
     '''
-    search page by keywords pattern, return the respective page range in list.
+    search page by keywords pattern from page 3
+    if found, return the respective page range in list.
     '''
     pageRange = []
     pages = pdf.getNumPages()
-    for p in range(pages):
+    for p in range(3, pages):
         page = pdf.getPage(p)
         page_txt = re.sub('\n+', '', page.extractText())
         if re.search(keywords_pattern, page_txt, flags=re.IGNORECASE):
             pageRange.append(p)
     logging.info(f'{keywords_pattern} found in pages {pageRange}')
-    if pageRange:
-        from_page = min(pageRange) if min(pageRange) != 1 else min(pageRange.remove(1))
-        to_page = max(pageRange)
-        return from_page, to_page
-    return None, None
+    from_page = get_pageRange(pageRange, 'from')
+    to_page = get_pageRange(pageRange, 'to')
+    return from_page, to_page
 
 
 def main():
     logging.basicConfig(level=logging.DEBUG,
                         filename=f'log-{os.path.splitext(__file__)[0]}.txt')
+    total, found_audit_firm, not_found_audit_firm = 0, 0, 0
     for data in get_data():
         pdf = get_pdf(data.file_link)
         if not pdf:
             continue
         toc = get_toc(pdf)
         title_pattern = r"independent auditor['s]?( report)?"
+
         if get_pages_by_outline(toc, title_pattern):
             from_page, to_page = get_pages_by_outline(toc, title_pattern)
         else:
             print('search by page!')
             from_page, to_page = get_pages_by_page_search(pdf, title_pattern)
         print(f"from_page: {from_page}, to_page: {to_page}")
-        # some pdf are scanned image which can't be searched by text..
-
-        # get auditor
-        # if outlines available
-        # locate independent auditor report last page by toc
-        # else:
-        # search keywords by page
-        # get the max from page range
-        # search auditor name pattern from the max page for n time.
-        # get auditor name by the last element
+        # print(f"from_page_type: {type(from_page)}, to_page_type: {type(to_page)}")
+        if to_page is not None:
+            total += 1
+            try:
+                audit_firm = get_auditor(pdf, to_page)
+                print(f'audit firm: {audit_firm} found on page: {to_page}')
+                logging.info(
+                    f'audit firm: == {audit_firm} ==; found on page: {to_page}')
+                found_audit_firm += 1
+            except AttributeError:
+                print(f'audit firm not found on page: {to_page}')
+                logging.warning(
+                    f'audit firm not found on page: {to_page}, check {data.file_link}')
+                not_found_audit_firm += 1
+    logging.critical(f'''
+    === program end ===
+    Audit firm summary: total: {total}; found {found_audit_firm}, not found: {not_found_audit_firm}
+    Success rate: {found_audit_firm/total:.2%}    
+    ''')
 
 
 main()

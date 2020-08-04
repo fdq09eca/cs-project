@@ -61,6 +61,7 @@ get selected kam
 - [ ] data to db
 
 - data should have
+
   - date
   - stock number
   - stock name
@@ -82,15 +83,15 @@ get selected kam
 - Use [Pypdf2](https://pythonhosted.org/PyPDF2/) for the pdf mining and string extraction.
 - There are another choices e.g. [pdfminer](https://github.com/euske/pdfminer/) but that would be too complicated and hard for maintenance since the authors has stop the support of the module.
 
-## Problems
+## Difficulties
 
-The most difficult part of this project is PDF mining. The annual report is  `.pdf` but it may not be written in format which pose difficulties in the programming process.
+**The most difficult part of this project is PDF mining.** The annual report is `.pdf` but it may not be written in format which pose difficulties in the programming process.
 
 - Annual report format is not consistent. Although most are `.pdf`, there are occasionally in other format e.g. `html` (see [SaSa](https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700552.htm))
 
-- Some `.pdf` is scanned document, which posed difficulties in text searching. see [here](https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100689.pdf)
+- Some `.pdf` is scanned document i.e. text search is impossible, see [here](https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100689.pdf)
 
-- Some `.pdf` outlines is not functional i.e. no reaction after clicking, thus, use the brute force keywords page search..
+- Extracted text may not be parsed correctly, which posed difficulties in text searching.
 
 ## References
 
@@ -99,7 +100,38 @@ The most difficult part of this project is PDF mining. The annual report is  `.p
 - [How to Web Scrape in the Cloud (Easy Way)](https://www.youtube.com/watch?v=qquCAgwvL8Q)
 - [how to execute a python script every Monday or every day](https://www.youtube.com/watch?v=Gs5jGDROx1M)
 - [APS](https://apscheduler.readthedocs.io/en/3.0/userguide.html#code-examples)
+- [Introduction to Dash Plotly - Data Visualization in Python](https://www.youtube.com/watch?v=hSPmj7mK6ng)
 
 ## Notable
 
-- Query over 1 year is not allowed. hkex API allows single stock for over 1 year query not overall.
+- Query over 1 year is not allowed. hkex API allows single stock for over 1 year query, but not overall.
+
+## Problem of get_auditor()
+
+- sometime it might not extract the txt correctly, e.g. `PricewaterhouseCoopersCerti˜ed`, `KPMGCerti˜ed`, `Deloitte Touche TohmatsuCerti˜ed`
+- trim the auditor output
+- return just space characters e.g. `audit firm: found on page: 177`
+- some company employee two auditors e.g. `audit firm: APPOINTMENT OF EXTERNAL AUDITOR AND INTERNAL CONTROL CONSULTANTOn 24 April 2019, the Board announced that, the Board resolved to appoint Ernst & Young Hua Ming as the auditor of the Company for the year 2019 and resolved to appoint BDO China Shu Lun Pan found on page: 127`
+- other, see below
+
+```
+audit firm:  On 22 March 2019, the Audit Committee convened an on-site meeting, at which the Audit Committee considered and approved the following resolutions:(1) the resolution on the 2018 Annual Report of the Company and its summary and the H Shares results announcement was considered and approved;(2) the resolution on the 2018 audited financial report of the Company was considered and approved;(3) the resolution on the 2018 Audit Report on the financial report of the Company was considered and approved;(4) the resolution on the 2018 Internal Control Evaluation Report of the Company was considered and approved;(5) the resolution on the 2018 Internal Control Audit Report of the Company was considered and approved;(6) the resolution on the performance of functions by the Audit Committee of the Company for the year 2018 was considered and approved;(7) the resolution on the payment of the audit fee for 2018 financial reports to Shinewing found on page: 141
+```
+
+```
+audit firm: 8 million was paid/payable to Deloitte  ed  found on page: 91
+```
+
+### Strategy
+
+1. Capture error type
+   1. create a `.csv` for capture the result. with the following variable
+      1. stock number
+      2. stock name
+      3. auditor result
+      4. from_page
+      5. to_page
+      6. link
+      7. page_text.
+2. use fuzzy string match to boost the accuracy
+3. use Logistic regression or NLP to learn..
