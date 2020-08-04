@@ -16,6 +16,7 @@ import PyPDF2
 import io
 import itertools
 import logging
+from functools import wraps
 
 
 def print_results(results):
@@ -37,7 +38,16 @@ def print_results(results):
     return wrapper
 
 
-def query(from_date, to_date=datetime.date.today().strftime('%Y%m%d')) -> Generator[object, None, None]:
+def yearsago(years, from_date=datetime.datetime.now()):
+    try:
+        return from_date.replace(year=from_date.year - years)
+    except ValueError:
+        # Must be 2/29!
+        assert from_date.month == 2 and from_date.day == 29  # can be removed
+        return from_date.replace(month=2, day=28, year=from_date.year-years)
+
+
+def query(from_date, to_date=datetime.date.today()) -> Generator[object, None, None]:
     '''
     **decorator function.**
     It loads the params of getting 500 companies' annual reports per request to hkexnews API.
@@ -54,19 +64,24 @@ def query(from_date, to_date=datetime.date.today().strftime('%Y%m%d')) -> Genera
         'stockId': '-1',
         'documentType': '-1',
         'fromDate': from_date,
-        'toDate': to_date,
+        'toDate': to_date.strftime('%Y%m%d'),
         'title': '',
         'searchType': '1',
         't1code': '40000',
         't2Gcode': '-2',
         't2code': '40100',
-        'rowRange': '500',
+        'rowRange': '100',
         'lang': 'EN'
     }
+    over_a_year = datetime.datetime.strptime(from_date, '%Y%m%d') < datetime.datetime.strptime(
+        yearsago(1, to_date).strftime("%Y%m%d"), '%Y%m%d')
+    if over_a_year:
+        raise ValueError(
+            f'Can only query from {datetime.datetime.strftime(yearsago(1), "%Y%m%d")}')
 
     def Inner(call_api):
         def wrapper(*args, **kwargs):
-            return (i for i in call_api(endpoint=endpoint, payloads=payloads, *args, **kwargs))
+            return (i for i in call_api(endpoint=endpoint, payloads=payloads))
         return wrapper
     return Inner
 
@@ -77,7 +92,7 @@ def data_decoder(data):
     return namedtuple('data', data.keys())(*data.values())
 
 
-@query(from_date='20200629')
+@query(from_date='20190804')
 # @print_results
 def get_data(endpoint: str, payloads: dict) -> list:
     '''
@@ -155,7 +170,7 @@ def get_toc(pdf: object) -> dict:
 
 def get_pages_by_outline(toc: dict, title_pattern: str) -> tuple:
     '''
-    search outline title pattern, return the respective outline page range in list. 
+    search outline title pattern, return the respective outline page range in list.
     '''
     pageRange = []
     for outline, page_range in toc.items():
@@ -170,7 +185,7 @@ def get_pages_by_outline(toc: dict, title_pattern: str) -> tuple:
 
 def get_pages_by_page_search(pdf, keywords_pattern):
     '''
-    search page by keywords pattern, return the respective page range in list. 
+    search page by keywords pattern, return the respective page range in list.
     '''
     pageRange = []
     pages = pdf.getNumPages()
@@ -181,9 +196,10 @@ def get_pages_by_page_search(pdf, keywords_pattern):
             pageRange.append(p)
     logging.info(f'{keywords_pattern} found in pages {pageRange}')
     if pageRange:
-        from_page, to_page = min(pageRange), max(pageRange)
+        from_page = min(pageRange) if min(pageRange) != 1 else min(pageRange.remove(1))
+        to_page = max(pageRange)
         return from_page, to_page
-    return None
+    return None, None
 
 
 def main():
@@ -198,25 +214,19 @@ def main():
         if get_pages_by_outline(toc, title_pattern):
             from_page, to_page = get_pages_by_outline(toc, title_pattern)
         else:
+            print('search by page!')
             from_page, to_page = get_pages_by_page_search(pdf, title_pattern)
         print(f"from_page: {from_page}, to_page: {to_page}")
-        ## some pdf are scanned image which can't be searched by text..
+        # some pdf are scanned image which can't be searched by text..
 
         # get auditor
-            # if outlines available
-            # locate independent auditor report last page by toc
-            # else:
-            # search keywords by page
-            # get the max from page range
-            # search auditor name pattern from the max page for n time.
-            # get auditor name by the last element
+        # if outlines available
+        # locate independent auditor report last page by toc
+        # else:
+        # search keywords by page
+        # get the max from page range
+        # search auditor name pattern from the max page for n time.
+        # get auditor name by the last element
 
 
 main()
-# logging.basicConfig(level=logging.DEBUG)
-# logging.basicConfig(level=logging.DEBUG, filename=f'log-{os.path.splitext(__file__)[0]}.txt')
-# url = '/listedco/listconews/sehk/2020/0730/2020073001154.pdf'
-# url = 'https://www1.hkexnews.hk' + url
-
-# pdf = get_pdf(url)
-# get_toc(pdf)
