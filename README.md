@@ -48,7 +48,7 @@ This project is requested by [Chong Sing Holding FinTech Group Limited](http://w
 
 ### get_kam_occurrence()
 
-get selected kam
+***get selected kam: TBC***
 
 - [ ] create dictionary: `{kam : 0 for kam in KAMs}`
 - [ ] for page in auditor_report:
