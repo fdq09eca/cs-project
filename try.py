@@ -1,3 +1,5 @@
+import os
+import csv
 import requests
 import PyPDF2
 import io
@@ -145,48 +147,28 @@ def get_outline_pages(toc: dict, title_pattern: str) -> list:
     pageRange = [page_range.split(' - ') for outline, page_range in toc.items(
     ) if re.search(title_pattern, outline, flags=re.IGNORECASE)][0]
     return pageRange
-# url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf' # outline unavaiable
 
 
-# url = 'https://www1.hkexnews.hk/'
-# url = url + '/listedco/listconews/sehk/2020/0731/2020073100689.pdf'
+def get_auditor(indpt_audit_report, p):
+    '''
+    get audit firm name by searching the regex pattern on a page
+    '''
+    page = indpt_audit_report.getPage(p)
+    text = page.extractText()
+    text = re.sub('\n+', '', text)
+    pattern = r'.*\.((?P<auditor>[A-Z].*?):?( LLP)?)( ?Certi.*? )?Public Accountants'
+    # pattern = r'(:?.*\.[\s\n]?(?P<auditor>.*))[\s\n]?(?:Certified )?Public Accountants'
+    auditor = re.search(pattern, text).group('auditor')
+    return auditor
+
+# outline unavaiable
+# url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000811.pdf'
+
+
+# # url = 'https://www1.hkexnews.hk/'
+# # url = url + '/listedco/listconews/sehk/2020/0731/2020073100689.pdf'
 # pdf = get_pdf(url)
 
-# for i in range(10):
-#     page = pdf.getPage(i)
-#     page_txt = re.sub('\n+', '', page.extractText())
-#     print(page_txt)
-
-# search_audit_report_by_page(url)
-
-# toc = get_toc(pdf)
-# title_pattern = r"independent auditor['s]?( report)?"
-# from_page, to_page = get_outline_pages(toc, title_pattern)
-# print(from_page, to_page)
-
-# S = ["KEY AUDIT MATTERS", "KEY AUDIT MATTER"]
-# pattern = r'KEY AUDIT MATTER[S]?'
-# S = ["independent auditors aa', independent auditor's report, independent auditor report"]
-# pattern = r"independent auditor['s]?( report)?"
-# print([i for i in S if re.search(pattern, i, flags=re.I)])
-pageRange = [1, 2, 3, 4, 5, 6]
-
-
-def get_pageRange(pageRange, from_to):
-    if from_to == 'from':
-        try:
-            if min(pageRange) == 1 or min(pageRange) == 2:
-                return get_pageRange(pageRange[1:], from_to)
-        except ValueError:
-            return None
-        return min(pageRange)
-    elif from_to == 'to':
-        try:
-            if max(pageRange) == 1 or max(pageRange) == 2:
-                return get_pageRange(pageRange[:-1], from_to)
-        except ValueError:
-            return None
-        return max(pageRange)
-
-print(get_pageRange(pageRange, 'from'))
-print(get_pageRange(pageRange, 'to'))
+s = 'Independent Auditor’s Report'
+title_pattern = r"independent auditor['s]? report"
+print(re.search(title_pattern, s, flags=re.I))

@@ -126,7 +126,22 @@ def get_auditor(indpt_audit_report, p):
     page = indpt_audit_report.getPage(p)
     text = page.extractText()
     text = re.sub('\n+', '', text)
-    pattern = r'.*\.((?P<auditor>.*?):?( LLP)?)( ?Certified )?Public Accountants'
+    pattern = r'.*\.\s*?((?P<auditor>[A-Z].*?):?( LLP)?)\s?(Certi.*?)?\s?Public Accountants'
     # pattern = r'(:?.*\.[\s\n]?(?P<auditor>.*))[\s\n]?(?:Certified )?Public Accountants'
     auditor = re.search(pattern, text).group('auditor')
     return auditor
+
+
+def write_to_csv(data: dict, csvname='result.csv'):
+    import csv
+    import os
+    if not os.path.exists(f'./{csvname}'):
+        with open(csvname, 'a') as file:
+            writer = csv.DictWriter(file, fieldnames=data.keys())
+            writer.writeheader()
+            writer.writerow(data)
+    else:
+        with open(csvname, 'a') as file:
+            writer = csv.DictWriter(file, fieldnames=data.keys())
+            writer.writerow(data)
+    # print('result wrote to ./{csvname}')

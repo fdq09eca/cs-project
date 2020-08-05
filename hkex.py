@@ -17,8 +17,10 @@ import itertools
 import logging
 from helper import *
 
+ytd = yearsago(1, datetime.date.today()).strftime("%Y%m%d")
 
-@query(from_date='20190804')
+
+@query(from_date='20190807')
 # @print_results
 def get_data(endpoint: str, payloads: dict) -> list:
     '''
@@ -122,13 +124,13 @@ def get_pages_by_page_search(pdf, keywords_pattern):
 def main():
     logging.basicConfig(level=logging.DEBUG,
                         filename=f'log-{os.path.splitext(__file__)[0]}.txt')
-    total, found_audit_firm, not_found_audit_firm = 0, 0, 0
+    print('== start ==')
     for data in get_data():
         pdf = get_pdf(data.file_link)
         if not pdf:
             continue
         toc = get_toc(pdf)
-        title_pattern = r"independent auditor['s]?( report)?"
+        title_pattern = r"^(independent|audit[or’'s]*?)( audit[or’'s]*?)? report"
 
         if get_pages_by_outline(toc, title_pattern):
             from_page, to_page = get_pages_by_outline(toc, title_pattern)
@@ -137,24 +139,67 @@ def main():
             from_page, to_page = get_pages_by_page_search(pdf, title_pattern)
         print(f"from_page: {from_page}, to_page: {to_page}")
         # print(f"from_page_type: {type(from_page)}, to_page_type: {type(to_page)}")
+        result = {}
         if to_page is not None:
-            total += 1
+            # result = dict(data._asdict())
             try:
                 audit_firm = get_auditor(pdf, to_page)
+                # result['search_by'] = 'outline'
                 print(f'audit firm: {audit_firm} found on page: {to_page}')
                 logging.info(
                     f'audit firm: == {audit_firm} ==; found on page: {to_page}')
-                found_audit_firm += 1
             except AttributeError:
+                audit_firm = None
+                # result['search_by'] = 'page'
                 print(f'audit firm not found on page: {to_page}')
                 logging.warning(
                     f'audit firm not found on page: {to_page}, check {data.file_link}')
-                not_found_audit_firm += 1
-    logging.critical(f'''
-    === program end ===
-    Audit firm summary: total: {total}; found {found_audit_firm}, not found: {not_found_audit_firm}
-    Success rate: {found_audit_firm/total:.2%}    
-    ''')
+            finally:
+                result['auditor'] = audit_firm
+                result['auditReportPageRange'] = f'{from_page} - {to_page}'
+                result['link'] = data.file_link
+                result['page_text'] = re.sub(
+                    '\n+', '', pdf.getPage(to_page).extractText())
+                try:
+                    result['normal'] = len(audit_firm) < 50
+                    if result['normal']:
+                        write_to_csv(result, 'normal.csv')
+                    else:
+                        write_to_csv(result, 'abnormal.csv')
+                except TypeError:
+                    write_to_csv(result, 'abnormal.csv')
+                # finally:
+                #     write_to_csv(result)
+
+# Independent auditor’s report
+# main()
+# ^(Independent|Audit[or’s']*)( Audit[or’s']*)? REPORT$
 
 
-main()
+total, found = 0, 0
+for data in get_data():
+    pdf = get_pdf(data.file_link)
+    if not pdf:
+        continue
+    toc = get_toc(pdf)
+    # title_pattern = r"^independent auditor.{2}? report$"
+    title_pattern = r"^(independent|audit[or’'s]*?)( audit[or’'s]*?)? report"
+    if toc:
+        total += 1
+        for outline, page_range in toc.items():
+            search_result = re.search(
+                title_pattern, outline, flags=re.IGNORECASE)
+            if search_result:
+                # logging.info(f'{outline}')
+                write_to_csv({'outline': outline, "link": data.file_link})
+                found += 1
+print(f'found rate: {found/total:.2%}')
+
+# pages = pdf.getNumPages()
+# for p in range(3, pages):
+#     page = pdf.getPage(p)
+#     page_txt = re.sub('\n+', '', page.extractText())
+#     search_result = re.search(
+#         title_pattern, page_txt, flags=re.IGNORECASE)
+#     if search_result:
+#         print(search_result.groups())

@@ -48,7 +48,7 @@ This project is requested by [Chong Sing Holding FinTech Group Limited](http://w
 
 ### get_kam_occurrence()
 
-***get selected kam: TBC***
+**_get selected kam: TBC_**
 
 - [ ] create dictionary: `{kam : 0 for kam in KAMs}`
 - [ ] for page in auditor_report:
@@ -102,9 +102,14 @@ This project is requested by [Chong Sing Holding FinTech Group Limited](http://w
 - [APS](https://apscheduler.readthedocs.io/en/3.0/userguide.html#code-examples)
 - [Introduction to Dash Plotly - Data Visualization in Python](https://www.youtube.com/watch?v=hSPmj7mK6ng)
 
+### Database
+
+- [Python Postgrad SQL](https://www.postgresqltutorial.com/postgresql-python/connect/)
+- [How to Connect to a Postgres Database in Python](https://www.youtube.com/watch?v=OOSl2jeAA5U)
+
 ## Notable
 
-- Query over 1 year is not allowed. hkex API allows single stock for over 1 year query, but not overall.
+- Query over 1 year is not allowed. hkex API allows single stock for over 1 year query, not overall.
 
 ## Problem of get_auditor()
 
@@ -129,7 +134,7 @@ audit firm: The Board has delegated to the Audit and Risk Management Committee w
 
 ### Strategy
 
-1. Capture error type
+- [x] Capture error type
    1. create a `.csv` for capture the result. with the following variable
       1. stock number
       2. stock name
@@ -138,7 +143,7 @@ audit firm: The Board has delegated to the Audit and Risk Management Committee w
       5. to_page
       6. link
       7. page_text.
-2. improve `get_pageRange(.)` or `get_pages_by_page_search(.)` impose a condition that the `pageRange list` element (`int`) should not be too far from each other.
-3. improve the regex pattern, e.g. `r'.*\.((?P<auditor>[A-Z].*?):?( LLP)?)[ ?Certified ]?Public Accountants'`
-4. use fuzzy string match to boost the accuracy
-5. use Logistic regression or NLP to learn..
+1. improve `get_pageRange(.)` or `get_pages_by_page_search(.)` impose a condition that the `pageRange list` element (`int`) should not be too far from each other.
+- [x] improve the regex pattern, e.g. `r'.*\.((?P<auditor>[A-Z].*?):?( LLP)?)[ ?Certified ]?Public Accountants'`
+3. use fuzzy string match to boost the accuracy
+4. use Logistic regression or NLP to learn..
