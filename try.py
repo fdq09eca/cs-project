@@ -1,3 +1,5 @@
+from io import BytesIO
+import pdfplumber
 import os
 import csv
 import requests
@@ -156,9 +158,9 @@ def get_auditor(indpt_audit_report, p):
     page = indpt_audit_report.getPage(p)
     text = page.extractText()
     text = re.sub('\n+', '', text)
-    pattern = r'.*\.((?P<auditor>[A-Z].*?):?( LLP)?)( ?Certi.*? )?Public Accountants'
+    pattern = r'.*?\.(:?(\s)?(?P<auditor>[A-Z].*?):?( LLP)?)(.*?Certi.*?)?(Public|Chartered) Accountants'
     # pattern = r'(:?.*\.[\s\n]?(?P<auditor>.*))[\s\n]?(?:Certified )?Public Accountants'
-    auditor = re.search(pattern, text).group('auditor')
+    auditor = re.search(pattern, text, flags=re.DOTALL).group('auditor')
     return auditor
 
 # outline unavaiable
@@ -169,6 +171,29 @@ def get_auditor(indpt_audit_report, p):
 # # url = url + '/listedco/listconews/sehk/2020/0731/2020073100689.pdf'
 # pdf = get_pdf(url)
 
-s = 'Independent Auditor’s Report'
-title_pattern = r"independent auditor['s]? report"
-print(re.search(title_pattern, s, flags=re.I))
+# s = 'Independent Auditor’s Report'
+# title_pattern = r"independent auditor['s]? report"
+# print(re.search(title_pattern, s, flags=re.I))
+
+
+# url = "https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000620.pdf"
+d = {
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0727/2020072700551.pdf': 94,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0310/2020031001188.pdf': 228,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100530.pdf': 38,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100409.pdf': 43,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100379.pdf': 74,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073001251.pdf': 52,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100201.pdf': 11,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073001739.pdf': 56,
+}
+
+for url, page in d.items():
+    rq = requests.get(url)
+    pdf = pdfplumber.load(BytesIO(rq.content))
+    txt = pdf.pages[page].extract_text()
+    txt = re.sub("([^\x00-\x7F])+", "", txt)  # diu no chinese
+    print(txt)
+    pattern = r'''.*\n(.*?(?P<auditor>[A-Z].*?)( LLP)?\n)(.*?Certi.*?)?(Public|Chartered) Accountants'''
+    auditor = re.search(pattern, txt, flags=re.DOTALL).group('auditor').strip()
+    print(repr(auditor))
