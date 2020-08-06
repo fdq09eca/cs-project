@@ -101,7 +101,7 @@ This project is requested by [Chong Sing Holding FinTech Group Limited](http://w
 - [how to execute a python script every Monday or every day](https://www.youtube.com/watch?v=Gs5jGDROx1M)
 - [APS](https://apscheduler.readthedocs.io/en/3.0/userguide.html#code-examples)
 - [Introduction to Dash Plotly - Data Visualization in Python](https://www.youtube.com/watch?v=hSPmj7mK6ng)
-
+- [pdfplumber](https://github.com/jsvine/pdfplumber)
 ### Database
 
 - [Python Postgrad SQL](https://www.postgresqltutorial.com/postgresql-python/connect/)
@@ -145,5 +145,39 @@ audit firm: The Board has delegated to the Audit and Risk Management Committee w
       7. page_text.
 1. improve `get_pageRange(.)` or `get_pages_by_page_search(.)` impose a condition that the `pageRange list` element (`int`) should not be too far from each other.
 - [x] improve the regex pattern, e.g. `r'.*\.((?P<auditor>[A-Z].*?):?( LLP)?)[ ?Certified ]?Public Accountants'`
+  - [ ] there are **Chartered Accountants** after the firm title
 3. use fuzzy string match to boost the accuracy
 4. use Logistic regression or NLP to learn..
+5. use `pdfplumber` which text extraction feature has a better performance
+```
+import requests
+import pdfplumber
+from io import BytesIO
+
+url = "https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0326/2020032600623.pdf"
+rq = requests.get(url)
+pdf = pdfplumber.load(BytesIO(rq.content))
+page = pdf.pages[53]
+print(page.extract_text())
+```
+6. build a alphabetic hash table i.e. `memorised_firm[a-z]  = [...]`
+```
+
+def normal_str(found_str):
+  return len(found_str) < 50
+
+def fuzzy_check(found_str):
+  for idx in memorised_firm.keys():
+    result = [fuzzy_match(firm, found_str) for firm in memorised_firm[idx] if fuzzy_match(firm, found_str) > threhold]
+    return max(result, percentage)
+
+if found_str:
+  if not normal_str(found_str):
+    return fuzzy_check(found_str)
+  idx = found_str[0]
+  if found_str not in memorised_firm[idx]:
+    memorised_firm[idx].append(found_str)
+  return found_str
+
+
+```
