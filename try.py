@@ -1,8 +1,8 @@
 from io import BytesIO
 import pdfplumber
 import os
-import csv
 import requests
+import csv
 import PyPDF2
 import io
 import itertools
@@ -178,6 +178,8 @@ def get_auditor(indpt_audit_report, p):
 
 # url = "https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000620.pdf"
 d = {
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073001274.pdf': 76,
+    'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0529/2020052902118.pdf': 55,
     'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0727/2020072700551.pdf': 94,
     'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0310/2020031001188.pdf': 228,
     'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100530.pdf': 38,
@@ -193,7 +195,9 @@ for url, page in d.items():
     pdf = pdfplumber.load(BytesIO(rq.content))
     txt = pdf.pages[page].extract_text()
     txt = re.sub("([^\x00-\x7F])+", "", txt)  # diu no chinese
-    print(txt)
-    pattern = r'''.*\n(.*?(?P<auditor>[A-Z].*?)( LLP)?\n)(.*?Certi.*?)?(Public|Chartered) Accountants'''
+    # print(txt)
+    pattern = r'.*\n.*?(?P<auditor>[A-Z].+?)(?:LLP\s*)?(Certified Public|Chartered) Accountants'
+    # pattern = r'''.*(\.)?\n(.*?(?P<auditor>[A-Z].+?))(Certified )?(Public|Chartered) Accountants'''
+    # pattern = r'''.*\n(.*?(?P<auditor>[A-Z].+)( LLP)?(\n| \w+?))(Certi.*?)?(Public|Chartered) Accountants'''
     auditor = re.search(pattern, txt, flags=re.DOTALL).group('auditor').strip()
     print(repr(auditor))
