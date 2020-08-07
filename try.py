@@ -1,7 +1,7 @@
 from io import BytesIO
 import pdfplumber
-import os
 import requests
+import os
 import csv
 import PyPDF2
 import io
@@ -178,6 +178,7 @@ def get_auditor(indpt_audit_report, p):
 
 # url = "https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000620.pdf"
 d = {
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0514/2020051400555.pdf':59,
     'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100628.pdf':37,
     'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0727/2020072700471.pdf':54,
     'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400570.pdf':12,
@@ -198,14 +199,16 @@ d = {
 }
 
 for url, page in d.items():
+    print('start')
     rq = requests.get(url)
+    print(f'{rq.status_code}')
     pdf = pdfplumber.load(BytesIO(rq.content))
     # print(pdf.pages[page].find_tables())
     txt = pdf.pages[page].extract_text()
     
     txt = re.sub("([^\x00-\x7F])+", "", txt)  # diu no chinese
-    # print(txt)
-    pattern = r'.*\n.*?(?P<auditor>[A-Z].+?\n?)(?:LLP\s*)?\s*(Certified Public|Chartered) Accountants'
+    print(txt)
+    pattern = r'.*\n.*?(?P<auditor>[A-Z].+?\n?)(?:LLP\s*)?\s*((Chinese.*?)?Certified Public|Chartered) Accountants'
     auditor = re.search(pattern, txt, flags=re.MULTILINE).group('auditor').strip()
     print(repr(auditor))
     
@@ -214,4 +217,3 @@ for url, page in d.items():
     # txts = pdf.pages[page].extract_words()
     # for txt in txts:
     #     print(txt.text)
-

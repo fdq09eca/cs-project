@@ -15,6 +15,9 @@ import PyPDF2
 import io
 import itertools
 import logging
+from io import BytesIO
+import pdfplumber
+import requests
 
 
 def print_results(results):
@@ -145,3 +148,26 @@ def write_to_csv(data: dict, csvname='result.csv'):
             writer = csv.DictWriter(file, fieldnames=data.keys())
             writer.writerow(data)
     # print('result wrote to ./{csvname}')
+
+
+def new_get_auditor(url, page):
+    '''
+    get audit firm name by searching the regex pattern on a page
+    '''
+    rq = requests.get(url)
+    pdf = pdfplumber.load(BytesIO(rq.content))
+    if rq.status_code == 200:
+        # logging.info('request success. start extracting text...')
+        print('request success. start extracting text...')
+    txt = pdf.pages[page].extract_text()
+    txt = re.sub("([^\x00-\x7F])+", "", txt)  # diu no chinese
+    pattern = r'.*\n.*?(?P<auditor>[A-Z].+?\n?)(?:LLP\s*)?\s*((Chinese.*?)?Certified Public|Chartered) Accountants'
+    auditor = re.search(pattern, txt, flags=re.MULTILINE).group(
+        'auditor').strip()
+    return auditor
+    # try:
+    #     auditor = re.search(pattern, txt, flags=re.MULTILINE).group('auditor').strip()
+    #     return auditor
+    # except AttributeError:
+    #     logging.warning(f'''Auditor not found in page {page}, check {url}.''')
+    #     return None

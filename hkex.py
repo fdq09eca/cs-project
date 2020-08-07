@@ -20,7 +20,7 @@ from helper import *
 ytd = yearsago(1, datetime.date.today()).strftime("%Y%m%d")
 
 
-@query(from_date='20190807')
+@query(from_date='20190808')
 # @print_results
 def get_data(endpoint: str, payloads: dict) -> list:
     '''
@@ -130,8 +130,7 @@ def main():
         if not pdf:
             continue
         toc = get_toc(pdf)
-        # title_pattern = r"^(independent|audit[or’'s]*?)( audit[or’'s]*?)? report"
-        title_pattern = r"((.*?report of (the)? )?independent|audit[or’'s]*?)(.*?audit[or’'s]*?)?.*(report|firm|audit[or’'s]*?)"
+        title_pattern = r".*?(independent|audit[or’'s]*|report)((?!committee|executive|director|non-standard).)*(report|firm|audit[or’'s]*)"
 
         if get_pages_by_outline(toc, title_pattern):
             from_page, to_page = get_pages_by_outline(toc, title_pattern)
@@ -144,17 +143,18 @@ def main():
         if to_page is not None:
             # result = dict(data._asdict())
             try:
-                audit_firm = get_auditor(pdf, to_page)
+                audit_firm = new_get_auditor(data.file_link, to_page)
+                # audit_firm = get_auditor(pdf, to_page)
                 # result['search_by'] = 'outline'
                 print(f'audit firm: {audit_firm} found on page: {to_page}')
                 logging.info(
                     f'audit firm: == {audit_firm} ==; found on page: {to_page}')
             except AttributeError:
-                audit_firm = None
                 # result['search_by'] = 'page'
                 print(f'audit firm not found on page: {to_page}')
                 logging.warning(
                     f'audit firm not found on page: {to_page}, check {data.file_link}')
+                audit_firm = 'None'
             finally:
                 result['auditor'] = audit_firm
                 result['auditReportPageRange'] = f'{from_page} - {to_page}'
@@ -172,37 +172,32 @@ def main():
                 # finally:
                 #     write_to_csv(result)
 
-# Independent auditor’s report
-# main()
-# ^(Independent|Audit[or’s']*)( Audit[or’s']*)? REPORT$
 
+def test():
+    total, found, no_toc = 0, 0, 0
+    for data in get_data():
+        pdf = get_pdf(data.file_link)
+        if not pdf:
+            continue
+        toc = get_toc(pdf)
+        # title_pattern = r"(.*?independent|audit[or’'s]*?)(.*?audit[or’'s]*?)?.*(report|firm|audit[or’'s]*?)" # 97.x%
+        title_pattern = r".*?(independent|audit[or’'s]*|report)((?!committee|executive|director|non-standard).)*(report|firm|audit[or’'s]*)"
 
-total, found = 0, 0
-for data in get_data():
-    pdf = get_pdf(data.file_link)
-    if not pdf:
-        continue
-    toc = get_toc(pdf)
-    # title_pattern = r"^independent auditor.{2}? report$"
-    title_pattern = r"((.*?report of (the)? )?independent|audit[or’'s]*?)(.*?audit[or’'s]*?)?.*(report|firm|audit[or’'s]*?)"
-    if toc:
-        total += 1
-        search_results = [re.search(title_pattern, outline, flags=re.IGNORECASE)
-                         for outline, page_range in toc.items()]
-        search_results = [r for r in search_results if r]
-        if search_results:
-            write_to_csv({'result': search_results[0].group(0), "link": data.file_link})
-            found += 1
+        if toc:
+            total += 1
+            search_results = [re.search(title_pattern, outline, flags=re.IGNORECASE)
+                              for outline, page_range in toc.items()]
+            search_results = [r for r in search_results if r]
+            if search_results:
+                write_to_csv(
+                    {'result': search_results[0].group(0), "link": data.file_link})
+                found += 1
+            else:
+                write_to_csv({'result': toc, "link": data.file_link})
         else:
-            write_to_csv({'result': toc, "link": data.file_link})
-print(f'found rate: {found/total:.2%}')
-# last time 96.x%
+            no_toc += 1
+    summary = f'total: {total}; toc missing rate: {no_toc/total:.2%}; success rate: {found/total:.2%}'
+    print(summary)
+    write_to_csv({'result': summary, 'link' : 'N/A'})
 
-# pages = pdf.getNumPages()
-# for p in range(3, pages):
-#     page = pdf.getPage(p)
-#     page_txt = re.sub('\n+', '', page.extractText())
-#     search_result = re.search(
-#         title_pattern, page_txt, flags=re.IGNORECASE)
-#     if search_result:
-#         print(search_result.groups())
+main()
