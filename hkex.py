@@ -130,7 +130,8 @@ def main():
         if not pdf:
             continue
         toc = get_toc(pdf)
-        title_pattern = r"^(independent|audit[or’'s]*?)( audit[or’'s]*?)? report"
+        # title_pattern = r"^(independent|audit[or’'s]*?)( audit[or’'s]*?)? report"
+        title_pattern = r"((.*?report of (the)? )?independent|audit[or’'s]*?)(.*?audit[or’'s]*?)?.*(report|firm|audit[or’'s]*?)"
 
         if get_pages_by_outline(toc, title_pattern):
             from_page, to_page = get_pages_by_outline(toc, title_pattern)
@@ -183,17 +184,19 @@ for data in get_data():
         continue
     toc = get_toc(pdf)
     # title_pattern = r"^independent auditor.{2}? report$"
-    title_pattern = r"^(independent|audit[or’'s]*?)( audit[or’'s]*?)? report"
+    title_pattern = r"((.*?report of (the)? )?independent|audit[or’'s]*?)(.*?audit[or’'s]*?)?.*(report|firm|audit[or’'s]*?)"
     if toc:
         total += 1
-        for outline, page_range in toc.items():
-            search_result = re.search(
-                title_pattern, outline, flags=re.IGNORECASE)
-            if search_result:
-                # logging.info(f'{outline}')
-                write_to_csv({'outline': outline, "link": data.file_link})
-                found += 1
+        search_results = [re.search(title_pattern, outline, flags=re.IGNORECASE)
+                         for outline, page_range in toc.items()]
+        search_results = [r for r in search_results if r]
+        if search_results:
+            write_to_csv({'result': search_results[0].group(0), "link": data.file_link})
+            found += 1
+        else:
+            write_to_csv({'result': toc, "link": data.file_link})
 print(f'found rate: {found/total:.2%}')
+# last time 96.x%
 
 # pages = pdf.getNumPages()
 # for p in range(3, pages):
