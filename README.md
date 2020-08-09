@@ -149,6 +149,7 @@ audit firm: The Board has delegated to the Audit and Risk Management Committee w
 3. use fuzzy string match to boost the accuracy
 4. use Logistic regression or NLP to learn..
 5. use `pdfplumber` which text extraction feature has a better performance
+   1. `pdf_plumber` has a very complete logging.. so not root logging anymore..:(
 ```
 import requests
 import pdfplumber
@@ -178,6 +179,4 @@ if found_str:
   if found_str not in memorised_firm[idx]:
     memorised_firm[idx].append(found_str)
   return found_str
-
-
 ```

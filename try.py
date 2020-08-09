@@ -158,34 +158,52 @@ def get_auditor(indpt_audit_report, p):
     page = indpt_audit_report.getPage(p)
     text = page.extractText()
     text = re.sub('\n+', '', text)
-    pattern = r'.*?\.(:?(\s)?(?P<auditor>[A-Z].*?):?( LLP)?)(.*?Certi.*?)?(Public|Chartered) Accountants'
+    pattern = r'.*?\.(:?(\s)?(?P<auditor>.*?):?( LLP)?)(.*?Certi.*?)?(Public|Chartered) Accountants'
     # pattern = r'(:?.*\.[\s\n]?(?P<auditor>.*))[\s\n]?(?:Certified )?Public Accountants'
     auditor = re.search(pattern, text, flags=re.DOTALL).group('auditor')
     return auditor
 
-# outline unavaiable
-# url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000811.pdf'
+
+def testing(d, p_txt=False):
+    NG=0
+    for url, page in d.items():
+        rq = requests.get(url)
+        pdf = pdfplumber.load(BytesIO(rq.content))
+        txt = pdf.pages[page].extract_text()
+        txt = re.sub("([^\x00-\x7F])+", "", txt)  # diu no chinese
+        pattern = r'\n(?!.*?Institute.*?).*?(?P<auditor>.+?)(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants'
+        if p_txt:
+            print(txt)
+        try:
+            auditor = re.search(pattern, txt, flags=re.MULTILINE).group('auditor').strip()
+            print(repr(auditor))
+        except AttributeError:
+            print(txt)
+            print('============')
+            print(url)
+            NG += 1
+    print(f'NG:{NG}')
 
 
-# # url = 'https://www1.hkexnews.hk/'
-# # url = url + '/listedco/listconews/sehk/2020/0731/2020073100689.pdf'
-# pdf = get_pdf(url)
-
-# s = 'Independent Auditor’s Report'
-# title_pattern = r"independent auditor['s]? report"
-# print(re.search(title_pattern, s, flags=re.I))
 
 
-# url = "https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000620.pdf"
+
 d = {
-    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0514/2020051400555.pdf':59,
-    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100628.pdf':37,
-    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0727/2020072700471.pdf':54,
-    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400570.pdf':12,
-    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0703/2020070301488.pdf':48,
-    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0517/2020051700031.pdf':82,
-    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0429/2020042901239.pdf':115,
-    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042801961.pdf':62,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0409/2020040900362.pdf':182,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0515/2020051500792.pdf': 67,
+    'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002674.pdf': 30,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700400.pdf': 165,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0724/2020072400579.pdf': 58,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0515/2020051500209.pdf': 45,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0723/2020072300448.pdf': 116,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0514/2020051400555.pdf': 59,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100628.pdf': 37,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0727/2020072700471.pdf': 54,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400570.pdf': 12,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0703/2020070301488.pdf': 48,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0517/2020051700031.pdf': 82,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0429/2020042901239.pdf': 115,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042801961.pdf': 62,
     'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073001274.pdf': 76,
     'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0529/2020052902118.pdf': 55,
     'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0727/2020072700551.pdf': 94,
@@ -197,23 +215,18 @@ d = {
     'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100201.pdf': 11,
     'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073001739.pdf': 56,
 }
+# testing(d, p_txt=True)
+testing(d, p_txt=False)
+# unique_result()
+# error_result()
 
-for url, page in d.items():
-    print('start')
-    rq = requests.get(url)
-    print(f'{rq.status_code}')
-    pdf = pdfplumber.load(BytesIO(rq.content))
-    # print(pdf.pages[page].find_tables())
-    txt = pdf.pages[page].extract_text()
-    
-    txt = re.sub("([^\x00-\x7F])+", "", txt)  # diu no chinese
-    print(txt)
-    pattern = r'.*\n.*?(?P<auditor>[A-Z].+?\n?)(?:LLP\s*)?\s*((Chinese.*?)?Certified Public|Chartered) Accountants'
-    auditor = re.search(pattern, txt, flags=re.MULTILINE).group('auditor').strip()
-    print(repr(auditor))
-    
-    
-    
-    # txts = pdf.pages[page].extract_words()
-    # for txt in txts:
-    #     print(txt.text)
+test_case = {
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0514/2020051400555.pdf': 59,
+    'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0529/2020052902118.pdf': 55,
+    'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0618/2020061800366.pdf': 47,
+    'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002674.pdf': 30,
+}
+
+# testing(test_case)
+# unique_result()
+# error_result()

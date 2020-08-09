@@ -16,11 +16,12 @@ import io
 import itertools
 import logging
 from helper import *
+from summary import *
 
 ytd = yearsago(1, datetime.date.today()).strftime("%Y%m%d")
 
 
-@query(from_date='20190808')
+@query(from_date=ytd)
 # @print_results
 def get_data(endpoint: str, payloads: dict) -> list:
     '''
@@ -122,8 +123,8 @@ def get_pages_by_page_search(pdf, keywords_pattern):
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG,
-                        filename=f'log-{os.path.splitext(__file__)[0]}.txt')
+    # logging.basicConfig(level=logging.INFO,
+    #                     filename=f'log-{os.path.splitext(__file__)[0]}.txt')
     print('== start ==')
     for data in get_data():
         pdf = get_pdf(data.file_link)
@@ -201,3 +202,5 @@ def test():
     write_to_csv({'result': summary, 'link' : 'N/A'})
 
 main()
+unique_result()
+error_result()
