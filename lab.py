@@ -81,8 +81,15 @@ def get_audit_from_txt(txt, pattern=None):
         pattern = r'\n(?!.*?(Institute).*?).*?(?P<auditor>.+?\S$)(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountant'
     try:
         return re.search(pattern, txt, flags=re.MULTILINE).group('auditor').strip()
-    except AttributeError:
+    except (AttributeError, TypeError):
         return None
+
+def find_noise(txt):
+    txt = re.sub('\n+', '\n', txt)
+    # noiseRegx = re.compile(r'^.{1,3}$|^\S{1,3}\s+(?=[A-Z])|\s+.{1,2}$', flags=re.MULTILINE)
+    noiseRegx = re.compile(r'^.{1,3}$|\s+.{1,2}$', flags=re.MULTILINE)
+    noises = noiseRegx.findall(txt)
+    return noises
 
 
 def remove_noise_by_croping(page, x0=None, x1=None, d=1):
@@ -90,14 +97,16 @@ def remove_noise_by_croping(page, x0=None, x1=None, d=1):
     read from 2 edges and strink to the middle
     return auditor if found else return None.
     '''
-    x0, x1 = (1-d) * float(page.width), d* float(page.width)
+    if x0 is None or x1 is None:
+        x0, x1 = (1-d) * float(page.width), d * float(page.width)
     top, bottom = 0, float(page.height)
     c_page = page.crop((x0, top, x1, bottom))
     txt = c_page.extract_text()
     auditor = get_audit_from_txt(txt)
     d-=0.01
     if auditor is None and round(d):
-        print(round(d))
+        x0, x1 = (1-d) * float(page.width), d * float(page.width)
+        print(txt)
         return remove_noise_by_croping(page, x0, x1, d)
     return auditor
 
@@ -105,16 +114,24 @@ def remove_noise_by_croping(page, x0=None, x1=None, d=1):
 from test_cases import unknown_cases, err_cases
 if __name__ == "__main__":
     # pattern = r'\n(?!.*?Institute.*?).*?(?P<auditor>.+?)(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants'
-    # for url, page_num in noise_cases.items():
-    for url, page_num in err_cases.items():
+    c = 0
+    d = {'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0407/2020040700498.pdf': 69,}
+    # for url, page_num in two_cols_cases.items():
+    for url, page_num in noise_cases.items():
+    # for url, page_num in test_cases.items():
+    # for url, page_num in d.items():
     # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0415/2020041501285.pdf', 147
     # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042800976.pdf', 60
     # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/gem/2019/1031/2019103100067.pdf', 73
+    
+        # c+=1
         page = get_page(url, page_num)
         txt = page.extract_text()
+        # print(find_noise(txt))
         # print(txt)
         # print(get_audit_from_txt(txt))
-        print(remove_noise_by_croping(page))
+        
+        print(c, remove_noise_by_croping(page))
     # print(page.extract_text())
 
 
