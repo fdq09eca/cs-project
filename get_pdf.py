@@ -18,12 +18,12 @@ def byte_obj_from_url(url: str) -> object:
 
 def by_pypdf(stream:Union[str, object]) -> Union[None, object]:
     '''
-    return  a pypdf2 object 
+    take url, local path, or BtyeIO objectas input 
+    return a pypdf2 object 
     '''
     import PyPDF2
     try:
-        stream = byte_obj_from_url(
-            stream) if isinstance(stream, str) else stream
+        stream = byte_obj_from_url(stream) if isinstance(stream,str) else stream
         return PyPDF2.PdfFileReader(stream, strict=False)
     except PyPDF2.utils.PdfReadError:
         logging.warning(f'PdfReadError occur, check {stream}')
@@ -31,6 +31,10 @@ def by_pypdf(stream:Union[str, object]) -> Union[None, object]:
 
 
 def by_pdfplumber(stream:Union[str, object]) -> Union[None, object]:
+    '''
+    take url, local path, or BtyeIO objectas input 
+    return a pdfplumber object 
+    '''
     import pdfplumber
     import os
     if isinstance(stream, str):
@@ -53,3 +57,4 @@ def check():
 
 if __name__ == "__main__":
     check()
+    # pass

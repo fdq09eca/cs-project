@@ -1,3 +1,4 @@
+from test_cases import unknown_cases, err_cases,
 from io import BytesIO
 import pdfplumber
 import requests
@@ -9,32 +10,8 @@ import itertools
 import re
 from test_cases import test_cases, noise_cases
 from test_cases import two_cols_cases
-
-
-def testing(
-    d=test_cases,
-    verbose=False,
-    pattern=r'\n(?!.*?Institute.*?).*?(?P<auditor>.+?)(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants',
-    NG=0
-):
-
-    for url, page in d.items():
-        rq = requests.get(url)
-        pdf = pdfplumber.load(BytesIO(rq.content))
-        txt = pdf.pages[page].extract_text()
-        txt = re.sub("([^\x00-\x7F])+", "", txt)  # diu no chinese
-        if verbose:
-            print(txt)
-        try:
-            auditor = re.search(pattern, txt, flags=re.MULTILINE).group(
-                'auditor').strip()
-            print(repr(auditor))
-        except AttributeError:
-            print(txt)
-            print('============')
-            print(url)
-            NG += 1
-    print(f'NG:{NG}')
+from typing import Union
+import get_pdf
 
 
 def get_page(url, p):
@@ -57,8 +34,6 @@ def test_two_cols(test_cases):
         print(col_2)
         print('====')
 
-# test_two_cols(two_cols_cases)
-
 
 def pdf_extracted_txt(url, page):
     rq = requests.get(url)
@@ -67,32 +42,53 @@ def pdf_extracted_txt(url, page):
     return txt
 
 
-def remove_noise(txt):
-    noiseRegx = re.compile(
-        r'^.{1,3}$|^\S{1,3}\s+(?=[A-Z])|\s+.{1,2}$', flags=re.MULTILINE)
-    txt = noiseRegx.sub('', txt)
-    txt = re.sub('\n+', '\n', txt)
-    print(txt)
-    return txt
-
-
 def get_audit_from_txt(txt, pattern=None):
     if pattern is None:
-        pattern = r'\n(?!.*?(Institute).*?).*?(?P<auditor>.+?\S$)(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountant'
+        pattern = r'\n(?!.*?(Institute|Responsibilities).*?).*?(?P<auditor>.{4,}\S|[A-Z]{4})(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants*'
     try:
-        return re.search(pattern, txt, flags=re.MULTILINE).group('auditor').strip()
+        txt = re.sub(r'\ufeff', ' ', txt)
+        # txt = re.sub("([^\x00-\x7F])+", "", txt)
+        return re.search(pattern, txt, flags=re.MULTILINE | re.IGNORECASE).group('auditor').strip()
     except (AttributeError, TypeError):
         return None
 
-def find_noise(txt):
+
+def found_noise(txt):
     txt = re.sub('\n+', '\n', txt)
     # noiseRegx = re.compile(r'^.{1,3}$|^\S{1,3}\s+(?=[A-Z])|\s+.{1,2}$', flags=re.MULTILINE)
     noiseRegx = re.compile(r'^.{1,3}$|\s+.{1,2}$', flags=re.MULTILINE)
     noises = noiseRegx.findall(txt)
-    return noises
+    return len(noises) > 10
 
 
-def remove_noise_by_croping(page, x0=None, x1=None, d=1):
+def is_landscape(src: Union[str, object], page_num):
+    '''
+    check a pypdf2 page object is landscape
+    '''
+    import get_pdf
+    pdf = get_pdf.by_pypdf(src)
+    page = pdf.getPage(page_num).mediaBox
+    page_width = page.getUpperRight_x() - page.getUpperLeft_x()
+    page_height = page.getUpperRight_y() - page.getLowerRight_y()
+    return page_width > page_height
+
+
+def page_cn_ratio(src: Union[str, object], page_num: int) -> float:
+    '''
+    take url, local path, byte object as src
+    return cn to txt ratio of a pdf page.
+    typically full cn page is over cn_to_txt_ratio is >85%
+    '''
+    import get_pdf
+    pdf = get_pdf.by_pdfplumber(src)
+    page = pdf.pages[page_num]
+    txt = page.extract_text()
+    cn_txt = re.sub("([\x00-\x7F])+", "", txt)
+    cn_to_txt_ratio = len(cn_txt)/len(txt)
+    return cn_to_txt_ratio
+
+
+def remove_noise_by_croping(page, x0=None, x1=None, d=0.95):
     '''
     read from 2 edges and strink to the middle
     return auditor if found else return None.
@@ -103,37 +99,48 @@ def remove_noise_by_croping(page, x0=None, x1=None, d=1):
     c_page = page.crop((x0, top, x1, bottom))
     txt = c_page.extract_text()
     auditor = get_audit_from_txt(txt)
-    d-=0.01
+    d -= 0.01
     if auditor is None and round(d):
+        # print(txt)
         x0, x1 = (1-d) * float(page.width), d * float(page.width)
-        print(txt)
         return remove_noise_by_croping(page, x0, x1, d)
     return auditor
 
 
-from test_cases import unknown_cases, err_cases
 if __name__ == "__main__":
     # pattern = r'\n(?!.*?Institute.*?).*?(?P<auditor>.+?)(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants'
     c = 0
-    d = {'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0407/2020040700498.pdf': 69,}
+    d = {'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0408/2020040800225.pdf': 130, }
     # for url, page_num in two_cols_cases.items():
-    for url, page_num in noise_cases.items():
-    # for url, page_num in test_cases.items():
+    # for url, page_num in noise_cases.items():
     # for url, page_num in d.items():
-    # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0415/2020041501285.pdf', 147
-    # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042800976.pdf', 60
-    # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/gem/2019/1031/2019103100067.pdf', 73
-    
-        # c+=1
-        page = get_page(url, page_num)
-        txt = page.extract_text()
-        # print(find_noise(txt))
-        # print(txt)
-        # print(get_audit_from_txt(txt))
-        
-        print(c, remove_noise_by_croping(page))
-    # print(page.extract_text())
+    for url, page_num in {**test_cases, **noise_cases}.items():
+        # for url, page_num in .items():
+        # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0415/2020041501285.pdf', 147
+        # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042800976.pdf', 60
+        # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/gem/2019/1031/2019103100067.pdf', 73
 
+        c += 1
+        # page = get_page(url, page_num)
+        page_obj = get_pdf.byte_obj_from_url(url)
+        if page_cn_ratio > .85:
+            page_num - 1
+        page = get_pdf.by_pdfplumber(page_obj).pages[page_num]
+        # txt = page.extract_text()
+        print(page_cn_ratio(page_obj, page_num))
+        # print(find_noise(txt))
+        # print(remove_noise_by_croping(page))
+        # auditor = get_audit_from_txt(txt) if not find_noise else remove_noise_by_croping(page)
+        # print(get_audit_from_txt(txt))
+        # print(txt)
+        # print(repr(txt))
+        # print(get_audit_from_txt(txt))
+        # with open('scanning.csv','a+') as f:
+        #     csv_writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        #     csv_writer.writerow([c, remove_noise_by_croping(page), url, find_noise(txt)])
+        # csv_writer.writerow([c, auditor, url, find_noise(txt)])
+
+    # print(page.extract_text())
 
     # print(page.extract_text())
         # print(remove_noise_by_croping(page))

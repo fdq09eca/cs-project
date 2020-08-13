@@ -25,3 +25,38 @@ def error_result(csvname='normal.csv', column='auditor', show_all=True):
     df = pd.read_csv(csvname)
     df = df[df['auditor'] == 'None']
     df.to_csv('err_result.csv', index=False)
+
+def find_row(auditor, csvname='normal.csv'):
+    import pandas as pd
+    import os
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('max_colwidth', None)
+    pd.set_option('display.width', None)
+    df = pd.read_csv(csvname)
+    print(df[df['auditor'] == auditor])
+
+# find_row('VI.')
+# testing(case, verbose=True)
+def get_df(csvname = 'normal.csv'):
+    import pandas as pd
+    import os
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('max_colwidth', None)
+    pd.set_option('display.width', None)
+    df = pd.read_csv(csvname)
+    return df
+
+def get_noise_case():
+    df = get_df('normal.csv')
+    df['from_page'] = df.auditReportPageRange.apply(lambda x: x.split(' - ')[0])
+    df['to_page'] = df.auditReportPageRange.apply(lambda x: x.split(' - ')[1])
+    cols = ['auditor','link', 'to_page']
+    df_noise = df[df.auditor.str.len() <= 3][cols]
+    d_noise = {link: int(topage) for link, topage in zip(df_noise.link, df_noise.to_page)}
+    print(d_noise)
+
+
+df = get_df('normal.csv')
+print(df[df.auditor.str.len() < 4].auditor)

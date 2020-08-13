@@ -18,7 +18,58 @@ import logging
 from io import BytesIO
 import pdfplumber
 import requests
+from typing import Union
 
+def page_cn_ratio(src:Union[str, object], page_num: int) -> float:
+    '''
+    take url, local path, byte object as src
+    return cn to txt ratio of a pdf page.
+    typically full cn page is over cn_to_txt_ratio is >85%
+    '''
+    import get_pdf
+    pdf = get_pdf.by_pdfplumber(src)
+    page = pdf.pages[page_num]
+    txt = page.extract_text()
+    cn_txt = re.sub("([\x00-\x7F])+", "", txt)
+    cn_to_txt_ratio = len(cn_txt)/len(txt)
+    return cn_to_txt_ratio
+
+def is_landscape(src:Union[str, object], page_num):
+    '''
+    check a pypdf2 page object is landscape
+    '''
+    from get_pdf import byte_obj_from_url, by_pypdf
+    pdf = by_pypdf(src)
+    page = pdf.getPage(page_num).mediaBox
+    page_width = page.getUpperRight_x() - page.getUpperLeft_x()
+    page_height = page.getUpperRight_y() - page.getLowerRight_y()
+    return page_width > page_height
+
+def is_url(url:str) -> bool:
+    if not isinstance(url, str):
+        raise TypeError(f'Input type {type(url)} is not str.')
+    url_regex = re.compile(
+        r'^(?:http|ftp)s?://' # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' #domain...
+        r'localhost|' #localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
+        r'(?::\d+)?' # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    return re.match(url_regex, url)
+
+def get_pdf(path: str) -> object:
+    '''
+    get the pdf file from path
+    '''
+    try:
+        response = requests.get(path)
+        open_pdf_file = io.BytesIO(response.content)
+        pdf = PyPDF2.PdfFileReader(open_pdf_file, strict=False)
+    except PyPDF2.utils.PdfReadError:
+        logging.warning(f'PdfReadError occur, check {url}')
+        return None
+    finally:
+        return pdf
 
 def print_results(results):
     '''

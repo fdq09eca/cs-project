@@ -17,7 +17,8 @@ import itertools
 import logging
 from helper import *
 from summary import *
-
+from get_toc import  *
+# import get_pdf
 ytd = yearsago(1, datetime.date.today()).strftime("%Y%m%d")
 
 
@@ -34,60 +35,6 @@ def get_data(endpoint: str, payloads: dict) -> list:
         return get_data(endpoint, payloads)
     results = json.loads(site_json['result'], object_hook=data_decoder)
     return results
-
-
-def get_pdf(url: str) -> object:
-    '''
-    get the pdf file from url
-    '''
-    try:
-        response = requests.get(url)
-        open_pdf_file = io.BytesIO(response.content)
-        pdf = PyPDF2.PdfFileReader(open_pdf_file, strict=False)
-        return pdf
-    except PyPDF2.utils.PdfReadError:
-        logging.warning(f'PdfReadError occur, check {url}')
-        return None
-
-
-def get_toc(pdf: object) -> dict:
-    '''
-    get the TOC with page number
-    '''
-    outlines = pdf.getOutlines()
-    outlines = flatten(outlines)
-    if not outlines:
-        logging.warning('Outline is unavailable.')
-
-    outlines, next_outlines = itertools.tee(outlines, 2)
-    next_outlines = itertools.chain(
-        itertools.islice(next_outlines, 1, None), [None])
-
-    toc = {}
-
-    for outline, next_outline in zip(outlines, next_outlines):
-
-        title = outline.title
-        if isinstance(title, str):
-            title = title.replace('\r', '')
-        else:
-            title = title.decode('utf-8', errors="ignore").replace('\r', '')
-
-        try:
-            from_page = pdf.getDestinationPageNumber(outline)
-        except AttributeError:
-            from_page = None
-        try:
-            to_page = pdf.getDestinationPageNumber(
-                next_outline) - 1 if next_outline is not None else from_page
-        except AttributeError:
-            to_page = None
-
-        logging.debug(f'{title.capitalize()}: {from_page} - {to_page}')
-        toc[title.capitalize()] = f'{from_page} - {to_page}'
-
-    return toc
-
 
 def get_pages_by_outline(toc: dict, title_pattern: str) -> tuple:
     '''
