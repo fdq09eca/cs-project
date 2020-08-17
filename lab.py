@@ -1,4 +1,4 @@
-from test_cases import unknown_cases, err_cases,
+from test_cases import unknown_cases, err_cases
 from io import BytesIO
 import pdfplumber
 import requests
@@ -16,7 +16,7 @@ import get_pdf
 
 def get_page(url, p):
     rq = requests.get(url)
-    pdf = pdfplumber.load(BytesIO(rq.content))
+    pdf = pdfplumber.open(BytesIO(rq.content))
     return pdf.pages[p]
 
 
@@ -42,18 +42,7 @@ def pdf_extracted_txt(url, page):
     return txt
 
 
-def get_audit_from_txt(txt, pattern=None):
-    if pattern is None:
-        pattern = r'\n(?!.*?(Institute|Responsibilities).*?).*?(?P<auditor>.{4,}\S|[A-Z]{4})(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants*'
-    try:
-        txt = re.sub(r'\ufeff', ' ', txt)
-        # txt = re.sub("([^\x00-\x7F])+", "", txt)
-        return re.search(pattern, txt, flags=re.MULTILINE | re.IGNORECASE).group('auditor').strip()
-    except (AttributeError, TypeError):
-        return None
-
-
-def found_noise(txt):
+def found_noise(txt:str):
     txt = re.sub('\n+', '\n', txt)
     # noiseRegx = re.compile(r'^.{1,3}$|^\S{1,3}\s+(?=[A-Z])|\s+.{1,2}$', flags=re.MULTILINE)
     noiseRegx = re.compile(r'^.{1,3}$|\s+.{1,2}$', flags=re.MULTILINE)
@@ -88,48 +77,115 @@ def page_cn_ratio(src: Union[str, object], page_num: int) -> float:
     return cn_to_txt_ratio
 
 
-def remove_noise_by_croping(page, x0=None, x1=None, d=0.95):
+def search_pattern_from_txt(txt: str, pattern=None) -> Union[str, object]:
     '''
-    read from 2 edges and strink to the middle
-    return auditor if found else return None.
+    search pattern from txt
+    return result if pattern is found else return None
     '''
-    if x0 is None or x1 is None:
-        x0, x1 = (1-d) * float(page.width), d * float(page.width)
-    top, bottom = 0, float(page.height)
-    c_page = page.crop((x0, top, x1, bottom))
-    txt = c_page.extract_text()
-    auditor = get_audit_from_txt(txt)
-    d -= 0.01
-    if auditor is None and round(d):
-        # print(txt)
-        x0, x1 = (1-d) * float(page.width), d * float(page.width)
-        return remove_noise_by_croping(page, x0, x1, d)
-    return auditor
+    if pattern is None:
+        pattern = r'\n(?!.*?(Institute|Responsibilities).*?).*?(?P<auditor>.{4,}\S|[A-Z]{4})(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants*'
+    try:
+        txt = re.sub(r'\ufeff', ' ', txt)  # clear BOM
+        txt = re.sub(r"([^\x00-\x7F])+", "", txt)  # no chinese
+        return re.search(pattern, txt, flags=re.MULTILINE | re.IGNORECASE).group('auditor').strip()
+    except (AttributeError, TypeError):
+        return None
 
+
+def search_pattern_from_page(page: object, d=0.95, pattern=None) -> str:
+    '''
+    take pdf_plumber page object as input
+    read from 2 edges and strink to the middle to remove noise text
+    return result if pattern found else return None.
+    '''
+    x0, x1 = (1-d) * float(page.width), d * float(page.width)
+    top, bottom = 0, float(page.height)
+    c_page = page.crop((x0, top, x1, bottom), relative=True)
+    txt = c_page.extract_text()
+    found_result = search_pattern_from_txt(txt, pattern)
+    d -= 0.01
+    if found_result is None and round(d):
+        return search_pattern_from_page(page, d, pattern)
+    return found_result
+
+def search_pattern_from_cols(page: object, d=0.5, pattern=None) -> list:
+    '''
+    take a pdf_plumber page object as input
+    divide the page into two columns: left and right and search pattern recursively
+    return a list of result that found in each column
+    '''
+    result = [search_pattern_from_page(page=col, d=1, pattern=pattern) for col in divide_page_into_two_cols(page, d)]
+    d -= .01
+    if not any(result) and d:
+        return search_pattern_from_cols(page, d, pattern)
+    return result
+
+def divide_page_into_two_cols(page:object, d=0.5)-> tuple:
+    '''
+    take pdf_plumber page object as input
+    divide a page into left and right colums
+    return left and right columns as pdf_plumber page object
+    '''
+    x0, x1 = 0 * float(page.width), d * float(page.width)
+    top, bottom = 0, float(page.height)
+    left_col = page.crop((x0, top, x1, bottom))
+    x0, x1 = d * float(page.width), 1 * float(page.width)
+    right_col = page.crop((x0, top, x1, bottom))
+    return left_col, right_col
+
+def is_two_cols(txt):
+    double_spaces = re.findall(r'^(?=.+[ ]{2})(?!.+[ ]{2}.+[ ]{2})(.+)', txt, flags=re.MULTILINE)
+    newlines = re.findall(r'.*?\n', txt, flags=re.MULTILINE)
+    return len(double_spaces)/len(newlines)
+
+
+def validated_result(result):
+    return len(result) > 50
 
 if __name__ == "__main__":
     # pattern = r'\n(?!.*?Institute.*?).*?(?P<auditor>.+?)(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants'
     c = 0
-    d = {'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0408/2020040800225.pdf': 130, }
+    d = {'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0723/2020072300448.pdf':116 }
     # for url, page_num in two_cols_cases.items():
     # for url, page_num in noise_cases.items():
+    # for url, page_num in test_cases.items():
+    for url, page_num in two_cols_cases.items():
     # for url, page_num in d.items():
-    for url, page_num in {**test_cases, **noise_cases}.items():
+    # for url, page_num in {**test_cases, **noise_cases}.items():
         # for url, page_num in .items():
         # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0415/2020041501285.pdf', 147
         # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042800976.pdf', 60
         # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/gem/2019/1031/2019103100067.pdf', 73
 
-        c += 1
-        # page = get_page(url, page_num)
-        page_obj = get_pdf.byte_obj_from_url(url)
-        if page_cn_ratio > .85:
-            page_num - 1
-        page = get_pdf.by_pdfplumber(page_obj).pages[page_num]
-        # txt = page.extract_text()
-        print(page_cn_ratio(page_obj, page_num))
+        # c += 1
+        page = get_page(url, page_num)
+        # page_obj = get_pdf.byte_obj_from_url(url)
+        # if page_cn_ratio > .85:
+            # page_num - 1
+        # page = get_pdf.by_pdfplumber(page_obj).pages[page_num]
+        txt = page.extract_text()
+        # print(txt)
+        # print(is_two_cols(txt), url)
+        if is_two_cols(txt) > .05:
+            # a = [search_pattern_from_txt(col.extract_text()) for col in divide_page_into_two_cols(page)]
+            a = search_pattern_from_cols(page)
+            print(a)
+        #     print(url)
+        # else:
+        #     print(is_two_cols(txt))
+        # print(page_cn_ratio(page_obj, page_num))
         # print(find_noise(txt))
-        # print(remove_noise_by_croping(page))
+        # print(search_pattern_from_page(page)
+        # for col in divide_page_into_two_cols(page):
+        #     print('=======')
+        #     txt = col.extract_text()
+        #     print(txt)
+        #     print('=======')
+        #     print(f'>>{search_pattern_from_txt(txt)}')
+        #     print(f'>>{is_two_cols(txt)}')
+            # print(search_pattern_from_page(col, d=1))
+        
+
         # auditor = get_audit_from_txt(txt) if not find_noise else remove_noise_by_croping(page)
         # print(get_audit_from_txt(txt))
         # print(txt)
