@@ -12,50 +12,195 @@ import json
 from collections import namedtuple
 from typing import Generator
 import PyPDF2
-import io
 import itertools
 import logging
 from io import BytesIO
 import pdfplumber
 import requests
 from typing import Union
+import pandas as pd
 
-def page_cn_ratio(src:Union[str, object], page_num: int) -> float:
+# def valid_auditor(csv):
+#     yield pd.read_csv(csv).to_list()
+
+
+def df_to_csv(df, csv_name='result.csv'):
     '''
-    take url, local path, byte object as src
+    pandas row to csv 
+    '''
+    if not os.path.exists(f'{csv_name}'):
+        df.to_csv(csv_name, mode='a', index=False, header=True)
+    else:
+        df.to_csv(csv_name, mode='a', index=False, header=False)
+
+
+def turn_n_page(pdf: object, page: object, n: int):
+    '''
+    take pdf_plumber pdf and page object and (+/-) int as input
+    return an updated pdf_plumber page object w.r.t the turning number of page (n)
+    '''
+    current_page_num = page.page_number - 1
+    new_page = pdf.pages[current_page_num + n]
+    return new_page
+
+
+def unique(li:list) -> list:
+    '''
+    result a sorted list with unqiue element
+    '''
+    return sorted(list(set(li)))
+
+
+def consecutive_int_list(li):
+    '''
+    return a list of list of consecutive integers
+    '''
+    from itertools import groupby
+    from operator import itemgetter
+    return [list(map(itemgetter(1), g)) for k, g in groupby(enumerate(li), lambda xi: xi[0]-xi[1])]
+
+
+def get_title_liked_txt(page: object, size='size') -> list:
+    '''
+    take pdf_plumber page object as input, size is the parameter of fontsize, could be 'adv' or 'size'
+    return the text which its not the main text of the page
+    it returns, if any, title aliked text in list
+    '''
+    if size not in ['size', 'adv']:
+        raise ValueError("size must be 'size' or 'adv'")
+    df = pd.DataFrame(page.chars)
+    main_fontsizes = df[size].mode()
+    df = df[~df[size].isin(main_fontsizes)]
+    title_like_txt_df = df.groupby(['top', 'bottom'])['text'].apply(''.join).reset_index()
+    return title_like_txt_df['text'].to_list()
+
+
+def search_pattern_from_page_or_cols(page: object, pattern: str):
+    '''
+    return search result of pattern from page or columns
+    page result returns if both exist
+    '''
+    return search_pattern_from_cols(page=page, pattern=pattern) or search_pattern_from_page(page=page, pattern=pattern)
+
+
+def search_pattern_from_cols(page: object, pattern=None, d=0.5, step=0.01, stop_point = .3) -> list:
+    '''
+    take a pdf_plumber page object as input
+    divide the page into two columns: left and right and search pattern recursively
+    return a list of result that found in each column
+    '''
+    # print('search from cols')
+    # col_result = lambda col: search_pattern_from_page(page=col, pattern=pattern, d = 1)
+    # results = map(col_result, divide_page_into_two_cols(page=page, d=d))
+    results = [search_pattern_from_page(page=col, pattern=pattern, d=1) for col in divide_page_into_two_cols(page=page, d=d)]
+    d -= step
+    print(round(d,2))
+    if not any(results) and d > stop_point:
+        try:
+            return search_pattern_from_cols(page=page, pattern=pattern, d=d, stop_point=stop_point)
+        except ValueError:
+            logging.warning("Pattern is not found in left or right columns.")
+            return None
+    return tuple(results)
+
+
+
+def divide_page_into_two_cols(page: object, d=0.5) -> tuple:
+    '''
+    take pdf_plumber page object as input
+    divide a page into left and right colums
+    return left and right columns as pdf_plumber page object
+    '''
+    l0, l1 = 0 * float(page.width), d * float(page.width)
+    r0, r1 = d * float(page.width), 1 * float(page.width)
+    top, bottom = 0, float(page.height)
+    # print(l0, l1, top, bottom)
+    # print(r0, r1, top, bottom)
+    # print()
+    # left_col = page.crop((l0, top, l1, bottom))
+    # right_col = page.crop((r0, top, r1, bottom))
+    left_col = page.within_bbox((l0, top, l1, bottom), relative = True)
+    right_col = page.within_bbox((r0, top, r1, bottom), relative = True)
+    return left_col, right_col
+
+
+def search_pattern_from_page(page: object, pattern=None, d=0.95) -> str:
+    '''
+    take pdf_plumber page object as input
+    read from 2 edges and strink to the middle to remove noise text
+    return result if pattern found else return None.
+    '''
+    # print(d)
+    
+    x0, x1 = (1-d) * float(page.width), d * float(page.width)
+    top, bottom = 0, float(page.height)
+    c_page = page.crop((x0, top, x1, bottom), relative=True)
+    # c_page = page.within_bbox((x0, top, x1, bottom), relative = True)
+    txt = c_page.extract_text()
+    found_result = search_pattern_from_txt(txt=txt, pattern=pattern)
+    d -= 0.01
+    if found_result is None and round(d):  # round(d) = 1is d still > 0.5
+        return search_pattern_from_page(page=page, pattern=pattern, d=d)
+    return found_result
+
+
+def search_pattern_from_txt(txt: str, pattern=None) -> Union[str, object]:
+    '''
+    search pattern from txt
+    return result if pattern is found else return None
+    '''
+    if pattern is None:
+        pattern = r'\n(?!.*?(Institute|Responsibilities).*?).*?(?P<auditor>.{4,}\S|[A-Z]{4})(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants*'
+    try:
+        txt = txt.replace('ﬁ', 'fi') # must clean before chinese
+        txt = re.sub(r'\ufeff', ' ', txt)  # clear BOM
+        txt = re.sub(r"([^\x00-\x7F])+", "", txt)  # no chinese
+        return re.search(pattern, txt, flags=re.MULTILINE | re.IGNORECASE)
+    except (AttributeError, TypeError):
+        return None
+
+def abnormal_page(page: object, func_list=None) -> bool:
+    '''
+    abornmal_page 
+    '''
+    if func_list is None:
+        func_list = [is_full_cn, is_landscape]
+    return any(map(lambda func: func(page), func_list))
+
+def is_full_cn(page: object, threshold: float = 0.85) -> bool:
+    '''
+    take a pdf_plumber page object and a float as input
     return cn to txt ratio of a pdf page.
     typically full cn page is over cn_to_txt_ratio is >85%
     '''
-    import get_pdf
-    pdf = get_pdf.by_pdfplumber(src)
-    page = pdf.pages[page_num]
     txt = page.extract_text()
+    txt = re.sub("\n+|\s+", "", txt)
     cn_txt = re.sub("([\x00-\x7F])+", "", txt)
     cn_to_txt_ratio = len(cn_txt)/len(txt)
-    return cn_to_txt_ratio
+    return cn_to_txt_ratio > threshold
 
-def is_landscape(src:Union[str, object], page_num):
-    '''
-    check a pypdf2 page object is landscape
-    '''
-    from get_pdf import byte_obj_from_url, by_pypdf
-    pdf = by_pypdf(src)
-    page = pdf.getPage(page_num).mediaBox
-    page_width = page.getUpperRight_x() - page.getUpperLeft_x()
-    page_height = page.getUpperRight_y() - page.getLowerRight_y()
-    return page_width > page_height
 
-def is_url(url:str) -> bool:
+def is_landscape(page) -> bool:
+    '''
+    check a pdfplumber page object is landscape
+    '''
+    return page.width > page.height
+
+
+def is_url(url: str) -> Union[object, None]:
     if not isinstance(url, str):
-        raise TypeError(f'Input type {type(url)} is not str.')
+        logging.warning(f'Input type {type(url)} is not str.')
+        return None
     url_regex = re.compile(
-        r'^(?:http|ftp)s?://' # http:// or https://
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' #domain...
-        r'localhost|' #localhost...
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
-        r'(?::\d+)?' # optional port
+        r'^(?:http|ftp)s?://'  # http:// or https://
+        # domain...
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'
+        r'localhost|'  # localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+        r'(?::\d+)?'  # optional port
         r'(?:/?|[/?]\S+)$', re.IGNORECASE)
     return re.match(url_regex, url)
+
 
 def get_pdf(path: str) -> object:
     '''
@@ -70,6 +215,7 @@ def get_pdf(path: str) -> object:
         return None
     finally:
         return pdf
+
 
 def print_results(results):
     '''
@@ -173,19 +319,6 @@ def get_pageRange(pageRange, from_to):
         return max(pageRange)
 
 
-def get_auditor(indpt_audit_report, p):
-    '''
-    get audit firm name by searching the regex pattern on a page
-    '''
-    page = indpt_audit_report.getPage(p)
-    text = page.extractText()
-    text = re.sub('\n+', '', text)
-    pattern = r'.*\.\s*?((?P<auditor>[A-Z].*?):?( LLP)?)\s?(Certi.*?)?\s?Public Accountants'
-    # pattern = r'(:?.*\.[\s\n]?(?P<auditor>.*))[\s\n]?(?:Certified )?Public Accountants'
-    auditor = re.search(pattern, text).group('auditor')
-    return auditor
-
-
 def write_to_csv(data: dict, csvname='result.csv'):
     import csv
     import os
@@ -217,5 +350,12 @@ def new_get_auditor(url, page):
         return None
     txt = re.sub("([^\x00-\x7F])+", "", txt)  # diu no chinese
     pattern = r'\n(?!.*?Institute.*?).*?(?P<auditor>.+?)(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants'
-    auditor = re.search(pattern, txt, flags=re.MULTILINE).group('auditor').strip()
+    auditor = re.search(pattern, txt, flags=re.MULTILINE).group(
+        'auditor').strip()
     return auditor
+
+
+def _validate(search_result):
+    pass
+
+

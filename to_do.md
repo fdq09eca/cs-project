@@ -1,7 +1,7 @@
 # Todo
 
 1. modify `get_page()`:
-   1. check the if the page is landscape before processing
+   1. check the if the page `is landscape` before processing
       1. if yes:
          1. get audit name, if it is none, then page number + 2 call `get_auditor()` again
    2. check if the page `cn_ratio`
@@ -19,3 +19,11 @@
       1. allow multiple target outline.
    2. if `search by pages`
       1. perform search for every page.
+
+## notes
+
+1. Corporate information pattern found rate 95.83%
+   1. `pattern = r"^(director.*)?c.*?(information|profile)"`
+2. independent report found rate 97.80%
+
+tidy up the code.

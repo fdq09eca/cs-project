@@ -87,7 +87,7 @@ def search_pattern_from_txt(txt: str, pattern=None) -> Union[str, object]:
     try:
         txt = re.sub(r'\ufeff', ' ', txt)  # clear BOM
         txt = re.sub(r"([^\x00-\x7F])+", "", txt)  # no chinese
-        return re.search(pattern, txt, flags=re.MULTILINE | re.IGNORECASE).group('auditor').strip()
+        return re.search(pattern, txt, flags=re.MULTILINE | re.IGNORECASE)
     except (AttributeError, TypeError):
         return None
 
@@ -104,7 +104,7 @@ def search_pattern_from_page(page: object, d=0.95, pattern=None) -> str:
     txt = c_page.extract_text()
     found_result = search_pattern_from_txt(txt, pattern)
     d -= 0.01
-    if found_result is None and round(d):
+    if found_result is None and round(d): #round(d) = 1is d still > 0.5
         return search_pattern_from_page(page, d, pattern)
     return found_result
 
@@ -116,8 +116,13 @@ def search_pattern_from_cols(page: object, d=0.5, pattern=None) -> list:
     '''
     result = [search_pattern_from_page(page=col, d=1, pattern=pattern) for col in divide_page_into_two_cols(page, d)]
     d -= .01
-    if not any(result) and d:
-        return search_pattern_from_cols(page, d, pattern)
+    # print(round(d, 2))
+    if not any(result):
+        try:
+            return search_pattern_from_cols(page, d, pattern)
+        except ValueError:
+            logging.warning("Pattern is not found in left or right columns.")
+            return None
     return result
 
 def divide_page_into_two_cols(page:object, d=0.5)-> tuple:
@@ -140,17 +145,19 @@ def is_two_cols(txt):
 
 
 def validated_result(result):
-    return len(result) > 50
+    return len(result) < 50
+
+
 
 if __name__ == "__main__":
     # pattern = r'\n(?!.*?Institute.*?).*?(?P<auditor>.+?)(?:LLP\s*)?\s*((PRC.*?|Chinese.*?)?[Cc]ertified [Pp]ublic|[Cc]hartered) [Aa]ccountants'
     c = 0
-    d = {'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0723/2020072300448.pdf':116 }
+    d = {'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1004/ltn20191004413.pdf': 74}
     # for url, page_num in two_cols_cases.items():
     # for url, page_num in noise_cases.items():
     # for url, page_num in test_cases.items():
-    for url, page_num in two_cols_cases.items():
-    # for url, page_num in d.items():
+    # for url, page_num in two_cols_cases.items():
+    for url, page_num in d.items():
     # for url, page_num in {**test_cases, **noise_cases}.items():
         # for url, page_num in .items():
         # url, page_num = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0415/2020041501285.pdf', 147
@@ -159,18 +166,20 @@ if __name__ == "__main__":
 
         # c += 1
         page = get_page(url, page_num)
+        print(search_pattern_from_cols(page))
+        # print(_is_landscape(page))
         # page_obj = get_pdf.byte_obj_from_url(url)
         # if page_cn_ratio > .85:
             # page_num - 1
         # page = get_pdf.by_pdfplumber(page_obj).pages[page_num]
-        txt = page.extract_text()
+        # txt = page.extract_text()
         # print(txt)
         # print(is_two_cols(txt), url)
-        if is_two_cols(txt) > .05:
+        # if is_two_cols(txt) > .05:
             # a = [search_pattern_from_txt(col.extract_text()) for col in divide_page_into_two_cols(page)]
-            a = search_pattern_from_cols(page)
-            print(a)
-        #     print(url)
+            # a = [i.group('auditor').strip() if i else i for i in search_pattern_from_cols(page)]
+            # print(a)
+            # print(url)
         # else:
         #     print(is_two_cols(txt))
         # print(page_cn_ratio(page_obj, page_num))

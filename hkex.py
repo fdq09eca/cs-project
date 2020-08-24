@@ -17,16 +17,17 @@ import itertools
 import logging
 from helper import *
 from summary import *
-from get_toc import  *
-# import get_pdf
-ytd = yearsago(1, datetime.date.today()).strftime("%Y%m%d")
+from get_toc import *
+# from get_toc import _get_toc, _get_page_by_outline, _get_page_by_page_search
+from lab import *
+import get_pdf
 
 
-@query(from_date=ytd)
-# @print_results
+@query(from_date=yearsago(1, datetime.date.today()).strftime("%Y%m%d"))
 def get_data(endpoint: str, payloads: dict) -> list:
     '''
     get data from hkex API.
+    endpoint is given by the query decorator
     '''
     response = requests.get(endpoint, params=payloads)
     site_json = json.loads(response.text)
@@ -35,20 +36,6 @@ def get_data(endpoint: str, payloads: dict) -> list:
         return get_data(endpoint, payloads)
     results = json.loads(site_json['result'], object_hook=data_decoder)
     return results
-
-def get_pages_by_outline(toc: dict, title_pattern: str) -> tuple:
-    '''
-    search outline title pattern, return the respective outline page range in list.
-    '''
-    pageRange = []
-    for outline, page_range in toc.items():
-        if re.search(title_pattern, outline, flags=re.IGNORECASE):
-            pageRange.append(page_range.split(' - '))
-    if len(pageRange) != 1:
-        logging.debug(f'{len(pageRange)} pair of page range is found.')
-        return None
-    from_page, to_page = pageRange[0]
-    return int(from_page), int(to_page)
 
 
 def get_pages_by_page_search(pdf, keywords_pattern):
@@ -74,7 +61,9 @@ def main():
     #                     filename=f'log-{os.path.splitext(__file__)[0]}.txt')
     print('== start ==')
     for data in get_data():
-        pdf = get_pdf(data.file_link)
+        
+        pdf_obj = get_pdf.byte_obj_from_url(data.file_link)
+        pdf = get_pdf.by_pypdf(pdf_obj)
         if not pdf:
             continue
         toc = get_toc(pdf)
@@ -86,19 +75,16 @@ def main():
             print('search by page!')
             from_page, to_page = get_pages_by_page_search(pdf, title_pattern)
         print(f"from_page: {from_page}, to_page: {to_page}")
-        # print(f"from_page_type: {type(from_page)}, to_page_type: {type(to_page)}")
         result = {}
         if to_page is not None:
-            # result = dict(data._asdict())
             try:
-                audit_firm = new_get_auditor(data.file_link, to_page)
-                # audit_firm = get_auditor(pdf, to_page)
-                # result['search_by'] = 'outline'
+                page = get_pdf.by_pdfplumber(pdf_obj).pages[to_page]
+                audit_firm = remove_noise_by_croping(page)
+                # audit_firm = new_get_auditor(data.file_link, to_page)
                 print(f'audit firm: {audit_firm} found on page: {to_page}')
                 logging.info(
                     f'audit firm: == {audit_firm} ==; found on page: {to_page}')
             except AttributeError:
-                # result['search_by'] = 'page'
                 print(f'audit firm not found on page: {to_page}')
                 logging.warning(
                     f'audit firm not found on page: {to_page}, check {data.file_link}')
@@ -117,37 +103,34 @@ def main():
                         write_to_csv(result, 'abnormal.csv')
                 except TypeError:
                     write_to_csv(result, 'abnormal.csv')
-                # finally:
-                #     write_to_csv(result)
+                finally:
+                    write_to_csv(result)
 
 
-def test():
-    total, found, no_toc = 0, 0, 0
-    for data in get_data():
-        pdf = get_pdf(data.file_link)
-        if not pdf:
-            continue
-        toc = get_toc(pdf)
-        # title_pattern = r"(.*?independent|audit[or’'s]*?)(.*?audit[or’'s]*?)?.*(report|firm|audit[or’'s]*?)" # 97.x%
-        title_pattern = r".*?(independent|audit[or’'s]*|report)((?!committee|executive|director|non-standard).)*(report|firm|audit[or’'s]*)"
+def test(url):
+    pdf_obj = get_pdf.byte_obj_from_url(url)
+    py_pdf = get_pdf.by_pypdf(pdf_obj)
+    plumber_pdf = get_pdf.by_pdfplumber(pdf_obj)
+    toc = _get_toc(py_pdf)
+    indpentent_auditor_report_pattern = r".*?(independent|audit[or’'s]*|report)((?!committee|executive|director|non-standard).)*(report|firm|audit[or’'s]*)"
+    if _get_page_by_outline(toc, indpentent_auditor_report_pattern):
+        print('find by outline!')
+        pages = _get_page_by_outline(toc, indpentent_auditor_report_pattern)
+    else:
+        print('find by page!')
+        pages = _get_page_by_page_search(plumber_pdf, indpentent_auditor_report_pattern)
+    
+    if pages:
+        for p in pages:
+            page = plumber_pdf.pages[int(p)]
+            search_result = search_pattern_from_page(page)
+            audit_firm = search_result.group('auditor').strip() if search_result else None
+            print(audit_firm)
 
-        if toc:
-            total += 1
-            search_results = [re.search(title_pattern, outline, flags=re.IGNORECASE)
-                              for outline, page_range in toc.items()]
-            search_results = [r for r in search_results if r]
-            if search_results:
-                write_to_csv(
-                    {'result': search_results[0].group(0), "link": data.file_link})
-                found += 1
-            else:
-                write_to_csv({'result': toc, "link": data.file_link})
-        else:
-            no_toc += 1
-    summary = f'total: {total}; toc missing rate: {no_toc/total:.2%}; success rate: {found/total:.2%}'
-    print(summary)
-    write_to_csv({'result': summary, 'link' : 'N/A'})
 
-main()
-unique_result()
-error_result()
+if __name__ == "__main__":
+    
+    main()
+    unique_result()
+    error_result()
+    
