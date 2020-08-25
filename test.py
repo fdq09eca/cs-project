@@ -21,29 +21,45 @@ def mi_len(_tuple):
     return min([len(i.strip().split()) for i in _tuple])
 
 
+class P:
 
-pd_setting()
+    def __init__(self,x):
+        self.x = x
 
-df = pd.read_csv('result.csv')
-not_none = (~(df['auditor'] == 'None'))
-not_na = (~df.auditor.isna())
-df = df[not_na & not_none]
+    @property
+    def x(self):
+        return self._x
+
+    @x.setter
+    def x(self, x):
+        if x < 0:
+            print('x<0')
+            self._x = 0
+        elif x > 1000:
+            print('x>1000')
+            self._x = 1000
+        else:
+            print('x=x')
+            self._x = x
+p = P(1001)
+print(p.x)
+print(p._x)
+# s8 = Phone(98)
+# print(s8._cost)
+# print(s8.cost)
+
+
+# pd_setting()
+
+# df = pd.read_csv('result.csv')
+# not_none = (~(df['auditor'] == 'None'))
+# not_na = (~df.auditor.isna())
+# df = df[not_na & not_none]
 # print(df)
 # clean_auditor = df.auditor[not_na | not_none].apply(all_to_lower)
-df['auditor'] = df.auditor.apply(all_to_lower)
+# df['auditor'] = df.auditor.apply(all_to_lower)
 # unique_auditor = []
 # print(df['auditor'].value_counts().sort_index())
-def cap_words(_str):
-    return ' '.join([s.capitalize() for s in _str.split()])
-r_auditors = list(set([ t.replace('\t',' ').lower() for _tuple in df['auditor'].unique() for t in _tuple]))
-unique_auditor = [r for r in sorted(r_auditors) if len(r.split()) <= 7]
-# print(unique_auditor)
-# pd.DataFrame({'unique_auditor': unique_auditor}).to_csv('auditor_option_2.csv', index = False)
-from fuzzywuzzy import process, fuzz
-_df = pd.read_csv('valid_auditors.csv')
-for r_auditor in sorted(r_auditors):
-    v_auditor = process.extractOne(r_auditor, _df.valid_auditor.values, scorer=fuzz.token_set_ratio)
-    print(r_auditor, v_auditor)
 
 # print(unique_auditor)
 # print(df['auditor'].value_counts())

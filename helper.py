@@ -20,9 +20,53 @@ import requests
 from typing import Union
 import pandas as pd
 
-# def valid_auditor(csv):
-#     yield pd.read_csv(csv).to_list()
+def date_fmt_validate(date_str:str, dt_fmt:str='%Y%m%d'):
+        try:
+            datetime.datetime.strptime(date_str, dt_fmt)
+            return date_str
+        except ValueError as e:
+            logging.critical(f'{e}, date str format is not {dt_fmt}')
+            raise ValueError(f'{e}, date str format is not {dt_fmt}')
+            # return None
 
+def yesterday(fmt='%Y%m%d') -> str:
+    '''
+    return yesterday string value in fmt format
+    '''
+    dt_yesterday = datetime.date.today() - datetime.timedelta(days=1)
+    fmt_yesterday = dt_yesterday.strftime(fmt)
+    return fmt_yesterday
+
+def today(fmt='%Y%m%d') -> str:
+    '''
+    return today string value in fmt format
+    '''
+    dt_today = datetime.date.today()
+    fmt_today = dt_today.strftime(fmt)
+    return fmt_today
+
+def over_a_year(from_date, to_date=datetime.date.today()) -> bool:
+    '''
+    return if from_date to to_date is over a year 
+    '''
+    ytd = n_yearsago(1, to_date)
+    datetime_ytd = datetime.datetime.strptime(ytd, '%Y%m%d')
+    datetime_frm_date = datetime.datetime.strptime(from_date, '%Y%m%d')
+    return datetime_frm_date < datetime_ytd
+
+def n_yearsago(n:int, from_date=datetime.datetime.now(), fmt = "%Y%m%d") -> str:
+    try:
+        dt_yearsago = from_date.replace(year=from_date.year - n)
+    except ValueError:
+        # Must be 2/29!
+        assert from_date.month == 2 and from_date.day == 29  # can be removed
+        dt_yearsago = from_date.replace(month=2, day=28, year=from_date.year - n)
+    finally:
+        return dt_yearsago.strftime(fmt)
+
+def str_to_date(string, str_time_pattern='%d/%m/%Y %H:%M', format_pattern='%d %b %Y'):
+    date = datetime.datetime.strptime(string, str_time_pattern)
+    return date.strftime(format_pattern)
 
 def df_to_csv(df, csv_name='result.csv'):
     '''
@@ -236,14 +280,6 @@ def print_results(results):
     return wrapper
 
 
-def yearsago(years, from_date=datetime.datetime.now()):
-    try:
-        return from_date.replace(year=from_date.year - years)
-    except ValueError:
-        # Must be 2/29!
-        assert from_date.month == 2 and from_date.day == 29  # can be removed
-        return from_date.replace(month=2, day=28, year=from_date.year-years)
-
 
 def query(from_date, to_date=datetime.date.today()) -> Generator[object, None, None]:
     '''
@@ -284,10 +320,7 @@ def query(from_date, to_date=datetime.date.today()) -> Generator[object, None, N
     return Inner
 
 
-def data_decoder(data):
-    data = {k.lower(): html.unescape(v) for k, v in data.items()}
-    data['file_link'] = "https://www1.hkexnews.hk" + data['file_link']
-    return namedtuple('data', data.keys())(*data.values())
+
 
 
 def flatten(li: list) -> list:
