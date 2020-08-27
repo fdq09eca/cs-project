@@ -19,6 +19,7 @@ import pdfplumber
 import requests
 from typing import Union
 import pandas as pd
+from fuzzywuzzy import process, fuzz
 
 def date_fmt_validate(date_str:str, dt_fmt:str='%Y%m%d'):
         try:
@@ -388,7 +389,10 @@ def new_get_auditor(url, page):
     return auditor
 
 
-def _validate(search_result):
-    pass
-
-
+def validate_auditor(r_auditor, v_auditors, min_similarity=90):
+    _r_auditor = re.sub(r's*(limited|Touche Tohmatsu)','',r_auditor, flags=re.IGNORECASE)
+    valid_auditor = process.extractOne(_r_auditor, v_auditors, scorer=fuzz.token_set_ratio)[0]
+    similarity = process.extractOne(_r_auditor, v_auditors, scorer=fuzz.token_set_ratio)[1]
+    if len(_r_auditor) <= 4:
+        min_similarity = 80
+    return valid_auditor if similarity >= min_similarity else None

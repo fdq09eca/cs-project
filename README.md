@@ -43,7 +43,7 @@ This project is requested by [Chong Sing Holding FinTech Group Limited](http://w
     - [x] append page number to a list if searched `independent auditor report` on that page
 - [x] get the page range (from-to) of `independent auditor report`
 - [x] get the last page of the auditor report
-- [o] **get audit firm_name**
+- [x] **get audit firm_name**
 - [ ] save the `pdf` to respective audit firm folder
 
 ### get_kam_occurrence()

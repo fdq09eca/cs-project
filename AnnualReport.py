@@ -6,7 +6,7 @@ import logging
 import pdfplumber
 import pandas as pd
 import numpy as np
-from helper import is_url, turn_n_page, is_landscape, is_full_cn, abnormal_page, df_to_csv, str_to_date, yesterday, today, n_yearsago
+from helper import is_url, turn_n_page, is_landscape, is_full_cn, abnormal_page, df_to_csv, str_to_date, yesterday, today, n_yearsago, validate_auditor
 from get_toc import _get_toc, _get_page_by_outline, _get_page_by_page_title_search
 from get_pdf import byte_obj_from_url, _by_pypdf, _by_pdfplumber
 
@@ -16,9 +16,10 @@ from fuzzywuzzy import process, fuzz
 
 
 class AnnualReport:
-
+    
     audit_report_regex = r'^(?!.*internal)(?=.*report|responsibilities).*auditor.*$'
     auditor_regex = r'\n(?!.*?(Institute|Responsibilities).*?).*?(?P<auditor>.{4,}\S|[A-Z]{4})(?:LLP\s*)?\s*((PRC\s*?|Chinese\s*?)?Certified\s*Public|Chartered)\s*Accountants*'
+    validation_src = 'valid_auditors.csv'
 
     def __init__(self, stream, company=None, stock_num=None, release_date=None, report_title=None):
         logging.warning(f'Initialising {type(self).__name__}("{stream}")')
@@ -30,8 +31,7 @@ class AnnualReport:
         self.company = company
         self.stock_num = int(stock_num)
         self.audit_fee = self._audit_fee()
-        self.release_date = str_to_date(
-            release_date, str_time_pattern='%d/%m/%Y %H:%M', format_pattern='%d %b %Y')
+        self.release_date = str_to_date(release_date, str_time_pattern='%d/%m/%Y %H:%M', format_pattern='%d %b %Y')
         # self.currency
 
     def _toc(self):
@@ -44,17 +44,23 @@ class AnnualReport:
         with _by_pdfplumber(self.pdf_obj) as pdf:
             return _get_page_by_outline(self.toc, outline_pattern) or _get_page_by_page_title_search(pdf, outline_pattern)
 
-    def valid_auditor(self, src: str = 'valid_auditors.csv', min_similarity: float = 90):
+    def valid_auditor(self, src: str = None, min_similarity: float = 90):
         '''
         vaildate auditor with database/local csvfile with column valid_auditor
         return the default auditor name if the pair is over the min_similarity
         '''
+        
+        if src is None:
+            src = self.validation_src
+        
         v_auditors = pd.read_csv(src).valid_auditor.values
         r_auditors = self.raw_auditor()
-        def validate(r_auditor): return process.extractOne(r_auditor, v_auditors, scorer=fuzz.token_set_ratio)[
-            0] if process.extractOne(r_auditor, v_auditors, scorer=fuzz.token_set_ratio)[1] >= min_similarity else None
-        # return tuple(v_auditor(r_auditor) for r_auditor in r_auditors)
-        return tuple(filter(None, map(validate, r_auditors)))
+        # def validate(r_auditor, v_auditors=v_auditors):
+        #     valid_auditor = process.extractOne(r_auditor, v_auditors, scorer=fuzz.token_set_ratio)[0]
+        #     similarity = process.extractOne(r_auditor, v_auditors, scorer=fuzz.token_set_ratio)[1]
+        #     return valid_auditor if similarity >= min_similarity else None
+        result = [validate_auditor(r_auditor, v_auditors, min_similarity) for r_auditor in r_auditors]
+        return tuple(filter(None, result))
 
     #     return df.valid_auditor.values
 
