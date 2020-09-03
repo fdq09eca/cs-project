@@ -111,12 +111,16 @@ def get_title_liked_txt(page: object, size='size') -> list:
     return the text which its not the main text of the page
     it returns, if any, title aliked text in list
     '''
-    if size not in ['size', 'adv']:
-        raise ValueError("size must be 'size' or 'adv'")
+    # if size not in ['size', 'adv']:
+    #     raise ValueError("size must be 'size' or 'adv'")
     df = pd.DataFrame(page.chars)
+    df = df[~df['text'].str.contains(r'[^\x00-\x7F]+')]
     main_fontsizes = df[size].mode()
     df = df[~df[size].isin(main_fontsizes)]
-    title_like_txt_df = df.groupby(['top', 'bottom'])['text'].apply(''.join).reset_index()
+    size = ['size'] + [size] if size is not 'size' else ['size']
+    
+    title_like_txt_df = df.groupby(['top','bottom'] + size)['text'].apply(''.join).reset_index()
+    # print(title_like_txt_df)
     return title_like_txt_df['text'].to_list()
 
 
@@ -169,6 +173,48 @@ def divide_page_into_two_cols(page: object, d=0.5) -> tuple:
     return left_col, right_col
 
 
+def top_down_search(self) -> object:
+    
+    x0, x1 = float(page.width), float(page.width)
+    top, bottom = d * float(page.height), float(page.height)
+    c_page = page.crop((x0, top, x1, bottom), relative=True)
+    # c_page = page.within_bbox((x0, top, x1, bottom), relative = True)
+    txt = c_page.extract_text()
+    found_result = search_pattern_from_txt(txt=txt, pattern=pattern)
+    d -= 0.01
+    if found_result is None and round(d):  # round(d) = 1is d still > 0.5
+        return search_pattern_from_page(page=page, pattern=pattern, d=d)
+    return c_page.page_number - 1
+
+def search_pattern_from_page(page: object, pattern=None, d=0.95, from_btm = False, return_page_obj = False) -> str:
+    '''
+    take pdf_plumber page object as input
+    read from 2 edges and strink to the middle to remove noise text
+    return result if pattern found else return None.
+    '''
+    # print(d)
+    if from_btm:
+        x0, x1 = float(page.width), float(page.width)
+        top, bottom = d * float(page.height), float(page.height)
+    else:
+        x0, x1 = (1-d) * float(page.width), d * float(page.width)
+        top, bottom = 0, float(page.height)
+    
+    
+    c_page = page.crop((x0, top, x1, bottom), relative=True)
+    # c_page = page.within_bbox((x0, top, x1, bottom), relative = True)
+    txt = c_page.extract_text()
+    found_result = search_pattern_from_txt(txt=txt, pattern=pattern)
+    d -= 0.01
+    
+    if found_result is None and round(d):  # round(d) = 1is d still > 0.5
+        return search_pattern_from_page(page=page, pattern=pattern, d=d)
+    
+    if return_page_obj:
+        return c_page if found_result else None
+
+    return found_result
+
 def search_pattern_from_page(page: object, pattern=None, d=0.95) -> str:
     '''
     take pdf_plumber page object as input
@@ -188,8 +234,7 @@ def search_pattern_from_page(page: object, pattern=None, d=0.95) -> str:
         return search_pattern_from_page(page=page, pattern=pattern, d=d)
     return found_result
 
-
-def search_pattern_from_txt(txt: str, pattern=None) -> Union[str, object]:
+def search_pattern_from_txt(txt: str, pattern=None) -> Union[None, object]:
     '''
     search pattern from txt
     return result if pattern is found else return None

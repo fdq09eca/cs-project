@@ -8,8 +8,13 @@ from helper import over_a_year, yesterday, today, n_yearsago
 class HKEX_API:
     
     '''
-    payloads is defauled to get the annual report from calling hkex api
-    `instance.payloads = None` if `payload` was customised and now want to rollback to default value            
+    usage:
+        make query to hkex api with specified time range stock id and document type
+    
+    note:
+        - query date format is '%Y%m%d' e.g. '20200825' (yyyymmdd)
+        - stock id is complusory for query which is over a year
+        - document types are annual report, half year report and quaterly report. (default: annual report)
     '''
     
     endpoint = 'https://www1.hkexnews.hk/search/titleSearchServlet.do'
@@ -24,7 +29,7 @@ class HKEX_API:
     def __init__(self, from_date, to_date, stock_id=None, doc='annual_report'):
         self.from_date = from_date
         self.to_date = to_date
-        self.stock_id= stock_id
+        self.stock_id = stock_id
         self.doc = doc
     
     
@@ -76,6 +81,7 @@ class HKEX_API:
     def call_api(endpoint:str, payloads:dict) -> tuple:
                
         with requests.get(endpoint, params=payloads) as response:
+            response.raise_for_status()
             site_json = json.loads(response.text)
             if site_json['hasNextRow']:
                 payloads['rowRange'] = site_json['recordCnt']
@@ -83,17 +89,16 @@ class HKEX_API:
             results = json.loads(site_json['result'], object_hook = HKEX_API.data_decoder)
             return tuple(results)
     
+
     @staticmethod
     def set_payloads(from_date:str, to_date:str=today('%Y%m%d'), stock_id:str=None, doc:str=None) -> dict:
-        '''
-        set payload for the hkex api call
-        '''
+               
         HKEX_API.date_fmt_validator(from_date, '%Y%m%d')
         HKEX_API.date_fmt_validator(to_date, '%Y%m%d')
 
         if over_a_year(from_date=from_date) and stock_id is None:
             ytd = n_yearsago(1)
-            raise ValueError(f'query over a year must speacify stock_id e.g "1", "5". Global query can only from "{ytd}"')
+            raise ValueError(f'Query over a year must specify stock_id e.g "1", global query can only from "{ytd}"')
 
         payloads = {
             'sortDir': '0',
@@ -122,7 +127,7 @@ class HKEX_API:
     
 
 if __name__ == '__main__':
-    pass
+    # pass
     # print(_get_data())
     # query = HKEX_API(from_date=yesterday(), to_date=today())
     query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())

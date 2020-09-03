@@ -89,8 +89,8 @@ if __name__ == "__main__":
     freq = df.auditor.value_counts()
     print(freq)
     abnormal_cases = freq[freq==1].shape[0] + sum((~not_none))
-    print((abnormal_cases)/freq.sum())
-    print(abnormal_cases, freq[freq==1].shape[0], sum((~not_none)), freq.sum())
+    print('error rate:', (abnormal_cases)/freq.sum())
+    print('error case:', abnormal_cases, 'single occurence:', freq[freq==1].shape[0], 'not found:', sum((~not_none)), 'total:', freq.sum())
 
     # print(df.auditor.value_counts().sort_index())
     # from fuzzywuzzy import process, fuzz
