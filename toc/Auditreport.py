@@ -120,6 +120,7 @@ class AuditFee(TableOfContent):
         table = AuditFeeTable(section)
         print(table.currency, table.unit, table.years, table.amount)
         print(table.focus_col)
+        print(table.summary)
         # print(table.raw_table)
         # print(table.table)
         return table.check_table()
@@ -210,8 +211,7 @@ class AuditFeeTable:
             "vertical_strategy": "text",
             "horizontal_strategy": "text",
             }
-
-
+    
     def __init__(self, section):
         self.section = section
 
@@ -275,9 +275,28 @@ class AuditFeeTable:
         str_to_int = lambda string : int(string.replace(',',''))
         for col in self.focus_col.values():
             amount = [str_to_int(cell) for cell in col if self.amount_cell(cell)]
+            if sum(amount[:-1]) == amount[-1]:
+                amount = amount[:-1]
             amounts.append(amount)
         return amounts
+    
+
+    @property
+    def actual_amount(self) -> list:
+        amounts = []
         
+        if len(self.unit_in_num) == 1:
+            unit = list(self.unit_in_num)[0]
+            for amount in self.amount:
+                m = [unit * i if type(unit) is int else i for i in amount]
+                amounts.append(m)
+        else:
+            for unit, amount in zip(self.unit_in_num, self.amount):
+                m = [unit * i if type(unit) is int else i for i in amount]
+                amounts.append(m)
+        
+        return amounts
+
 
     @property
     def years(self) -> set:
@@ -292,7 +311,26 @@ class AuditFeeTable:
         get_unit = lambda cell: self.currency_cell(cell).group('unit')
         unit = {get_unit(cell) for cell in flatten_cols if self.currency_cell(cell)}
         return unit
-
+    
+    @property
+    def unit_in_num(self) -> set:
+        if not self.unit:
+            return {1}
+        unit_in_num = set()
+        
+        thousand_regex = r'0{3}'
+        n_100 = lambda unit: len(re.findall(thousand_regex, unit))
+        mil_regex = 'mil(lion)?\s*'
+        
+        for unit in self.unit:
+            if n_100(unit):
+                unit_in_num.add(1_000 ** n_100(unit))
+            elif re.match(mil_regex, unit):
+                unit_in_num.add(1_000_000)
+            else:
+                unit_in_num.add(unit)
+        return unit_in_num
+        
 
     @property
     def currency(self) -> set:
@@ -316,21 +354,35 @@ class AuditFeeTable:
     @property
     def is_in_format(self) -> bool:
         for idx in self.co_idx:
+            
             if self.currency_cell(self.focus_col[idx][0]):
                 if not all(map(self.amount_cell, self.focus_col[idx][1:])):
                     return False
+            
             if self.year_cell(self.focus_col[idx][0]):
                 if not self.currency_cell(self.focus_col[idx][1]) and not all(map(self.amount_cell, self.focus_col[idx][2:])):
                     return False
+        
         return True
     
+
     @property
     def summary(self):
+        
         if self.check_table() is None:
             return None
+        
         summary = {
+            'year': self.years,
             'currency': self.currency,
+            'unit': self.unit,
+            'unit_in_num': self.unit_in_num,
+            'amount': self.amount,
+            'actual_amount': self.actual_amount,
+            'total': list(map(sum, self.actual_amount)),
         }
+        
+        return summary
 
 
     def check_table(self):
