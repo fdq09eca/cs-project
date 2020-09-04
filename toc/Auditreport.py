@@ -73,8 +73,8 @@ class AuditFee(TableOfContent):
     corporate_gov_report_regex = r'^(?=.*report).*corporate governance.*$'
     # audit_fee_regex = r"AUDIT.*?REMUNERATION|(external|independent|accountability).*auditor"
     audit_fee_regex = r"^(?!.*Nomination|.*Report)(?=.*REMUNERATION|.*independent|.*external|.*Accountability).*auditor.*$"
-    currency_regex = r'(?P<currency>^[HK$USDRMB]{2,3})(?P<unit>(\W0{3})*$|\s*mil\.?(lion)?$)'
-    currency_amount_regex = r'(?P<amount>^\d{1,3}(\W\d{3})*$|^-+$)'
+    currency_regex = r'(?P<currency>^[(]*[HK$USDRMB]{2,3})(?P<unit>((\W?0{3})*|\s*mil\.?(lion)?)[)]*$)'
+    currency_amount_regex = r'(?P<amount>^\d{1,3}(\W\d{3})*$|^[-–]+$)'
     
     
     def __init__(self, pdf_obj):
@@ -119,6 +119,8 @@ class AuditFee(TableOfContent):
             table = AuditFeeTable(section)
             if table.check():
                 tables.append(table)
+            else:
+                print(table.raw_table)
         return tables
         
     # @staticmethod
@@ -161,7 +163,7 @@ class AuditFee(TableOfContent):
         
         lower_than_target_top = b_df.top > self.target_top(df)
         not_empty = b_df.text.str.contains(r'\w+')
-        no_tailling_words = ~b_df.text.str.contains(r'^\s*REMUNERATION\s*$', flags=re.IGNORECASE)
+        no_tailling_words = ~b_df.text.str.contains(r'REMUNERATION', flags=re.IGNORECASE)
         # condition = (b_df.top > self.target_top(df)) & (b_df.text.str.contains(r'\w+')) & (~b_df.text.str.contains(r'REMUNERATION', flags=re.IGNORECASE)) 
         condition = lower_than_target_top & not_empty & no_tailling_words
         # print(b_df)
@@ -238,6 +240,7 @@ class AuditFeeTable:
 
     @property
     def table(self):
+
         table = [
             row for row in self.raw_table 
             if any(map(AuditFeeTable.year_cell, row))
@@ -287,7 +290,7 @@ class AuditFeeTable:
     @property
     def amount(self) -> list:
         amounts = []
-        str_to_int = lambda string : int(string.replace(',',''))
+        str_to_int = lambda string : int(re.sub(r'[-–]','0',string.replace(',','')))
         for col in self.focus_col.values():
             amount = [str_to_int(cell) for cell in col if self.amount_cell(cell)]
             if sum(amount[:-1]) == amount[-1]:
@@ -423,102 +426,31 @@ if __name__ == "__main__":
     # for data in query.data:
         
     #     url = data.file_link
+    #     print(url)
     #     pdf = PDF(url)
-    #     print(pdf.src)
-    #     f = AuditFee(pdf.pdf_obj)
-    #     f.test()
+    #     pdf_obj = pdf.pdf_obj
+    #     f = AuditFee(pdf_obj)
+    #     for table in f.tables:
+    #         print(table.summary)
+            # print(f.raw_table)
     
 
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40 # wrong number row
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100445.pdf',33 # text
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900505.pdf', 40 # normal
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000620.pdf', 24 # normal
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf', 104 # normal, two found result 
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf', 104 # normal, two found result 
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000009.pdf', 76 # normal, with years
-    
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0904/2020090402077.pdf', 21 # with `-` amount
+    # url , p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100934.pdf', 59 # hkd000
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0827/2020082700690.pdf', 41 # None type rawtable
     pdf = PDF(url)
     pdf_obj = pdf.pdf_obj
     f = AuditFee(pdf_obj)
-    for table in f.tables:
-        print(table.summary)
-    # p = f.audit_fee_page[0]
-    # section = f.target_section(p)
-    # table = f.get_table_from_section(section)
-    # txt = f.section_txt
-    # print(table)
-    # print(txt[0])
-    # for row in table:
-    #     print(row[1])
-    # print(f.get_table_co_idx(table))
-    # with _by_pdfplumber( pdf.pdf_obj) as pdf:
-    #     page = pdf.pages[p]
-    #     # print(page.extract_text())
-    #     df = pd.DataFrame(page.chars)
-    #     # df['text'] = df['text'].replace(r'[^\x00-\x7F]+', '')
-    #     df = df[~df.text.str.contains(r'[^\x00-\x7F]+')]
-    #     # print(df)
-    #     main_fontsizes = df['fontname'].mode()
-    #     t_df = df[~df['fontname'].isin(main_fontsizes)]
-    #     t_df = t_df.groupby(['top', 'bottom', 'fontname' , 'size'])['text'].apply(''.join).reset_index()
-    #     print(t_df)
-    #     target_top = t_df[t_df.text.str.contains(AuditFee.audit_fee_regex, flags=re.IGNORECASE)]['top'].values[0]
-    #     print(target_top)
-    #     main_fontsizes = df['size'].mode()
-    #     b_df = df[~df['size'].isin(main_fontsizes)]
-    #     b_df = b_df.groupby(['top', 'bottom'])['text'].apply(''.join).reset_index()
-    #     condition = (b_df.top > target_top) & (b_df.text.str.contains(r'\w+')) & (~b_df.text.str.contains(r'REMUNERATION', flags=re.IGNORECASE)) 
-    #     next_title = b_df[condition].head(1)
-    #     print(next_title)
-    #     target_bottom = next_title.top.values[0]
-    #     x0, x1 = 0, float(page.width)
-    #     page = page.crop((x0, float(target_top), x1, float(target_bottom)), relative=True)
-    #     print(page.extract_text())
-
-
-        
-    #     setting = {
-    #         "vertical_strategy": "text",
-    #         "horizontal_strategy": "text",
-    #         }
-
-    #     # print(page.extract_table(setting))
-    #     table = [li for li in page.extract_table(setting) if re.match(r'.*?\d+|^.{3,4}(\d{3})?$', li[-1])]
-    #     for r in table :
-    #         print(r)
-
-# import pandas as pd
-# from io import BytesIO
-# import pdfplumber, requests
-# url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40
-# url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0813/2020081300777.pdf', 28
-# url, p  = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0724/2020072400731.pdf', 69
-
-# with requests.get(url) as response:
-#         response.raise_for_status()
-#         byte_obj = BytesIO(response.content)
-# pdf = pdfplumber.open(byte_obj)
-# page = pdf.pages[p]
-# print(page.extract_text()) #(^.{2,4}\d{0,3})\s*[^\x00-\x7F]*$|([,\d]+$)
-# df = pd.DataFrame(page.chars)
-# df = df[~df.text.str.contains(r'[^\x00-\x7F]+')]
-# main_fontsizes = df['size'].mode()
-# df = df[~df['size'].isin(main_fontsizes)]
-# df = df.groupby(['top', 'bottom'])['text'].apply(''.join).reset_index()
-# print(df.text)
-# target_top = df[df.text.str.contains(r'AUDITORS REMUNERATION', flags=re.IGNORECASE)]['top'].values[0]
-# condition = (df.top > target_top) & (df.text.str.contains(r'\w+'))
-# next_title = df[condition].head(1)
-# target_bottom = next_title.top.values[0]
-# x0, x1 = 0, float(page.width)
-# page = page.crop((x0, float(target_top), x1, float(target_bottom)), relative=True)
-# print(page.extract_text()) #(^.{2,4}\d{0,3})\s*[^\x00-\x7F]*$|([,\d]+$)
-# r'(?P<currency>^.{2,4}\d{0,3})\s*[^\x00-\x7F]*$|^[A-Za-z\s]*?(?P<amount>\d+,*[,\d]*)'
-# print('====')
-# setting = {
-#             "vertical_strategy": "text",
-#             "horizontal_strategy": "text",
-# }
-
-# for li in page.extract_table(setting):
-#     if re.match(r'.*?\d+|^.{3,4}(\d{3})?$', li[-1]):
-#         print(''.join(li[:-1]), "|",li[-1])
+    section = f.target_section(p)
+    print(section.extract_text())
+    table = AuditFeeTable(section)
+    print(table.raw_table)
+    print(table.table)
+    print(table.summary)
+    
