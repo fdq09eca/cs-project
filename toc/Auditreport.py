@@ -73,8 +73,8 @@ class AuditFee(TableOfContent):
     corporate_gov_report_regex = r'^(?=.*report).*corporate governance.*$'
     # audit_fee_regex = r"AUDIT.*?REMUNERATION|(external|independent|accountability).*auditor"
     audit_fee_regex = r"^(?!.*Nomination|.*Report)(?=.*REMUNERATION|.*independent|.*external|.*Accountability).*auditor.*$"
-    currency_regex = r'(?P<currency>^[A-Za-z]{2,3})(?P<unit>(\W0{0,3})*$)'
-    currency_amount_regex = r'(?P<amount>^\d{1,3}(\W\d{3})*$)'
+    currency_regex = r'(?P<currency>^[HK$USDRMB]{2,3})(?P<unit>(\W0{3})*$|\s*mil\.?(lion)?$)'
+    currency_amount_regex = r'(?P<amount>^\d{1,3}(\W\d{3})*$|^-+$)'
     # in_text_currency_amount_regex = r'(?P<amount>^\D{2,3}\d{1,3}(\W\d{3})*$)'
     # Accountability and audit
     
@@ -113,69 +113,16 @@ class AuditFee(TableOfContent):
         for p in self.audit_fee_page:
             section = self.target_section(p)
             tables.append(self.get_table_from_section(section))
-        return tables
+        return filter(None,tables)
         
-
-    @staticmethod    
-    def get_table_co_idx(table:list):
-    
-        currency_cell = lambda cell: re.match(AuditFee.currency_regex, cell)
-        amount_cell = lambda cell: re.match(AuditFee.currency_amount_regex, cell)
-        currency_idx = {idx for row in table for idx, cell in enumerate(row) if currency_cell(cell)}
-        amount_idx = {idx for row in table for idx, cell in enumerate(row) if amount_cell(cell)}
-        # print(currency_idx, amount_idx)
-        co_idx = currency_idx.intersection(amount_idx)
-    
-        return co_idx
-
     @staticmethod
     def get_table_from_section(section:object):
-        
-        table_setting = {
-            "vertical_strategy": "text",
-            "horizontal_strategy": "text",
-            }
-        
-        raw_table = section.extract_table(table_setting)
-        row_len = len(raw_table[0])
-        current_yr = int(datetime.datetime.now().year)
-        yr_range = range(current_yr - 1, current_yr + 1)
-        
-        
-        year_cell = lambda cell: cell in [str(yr) for yr in yr_range]
-        currency_cell = lambda cell: re.match(AuditFee.currency_regex, cell)
-        amount_cell = lambda cell: re.match(AuditFee.currency_amount_regex, cell)
-        
-        table = [
-            row 
-            for row in raw_table 
-            if any(map(year_cell, row))
-            or any(map(currency_cell, row)) 
-            or any(map(amount_cell, row))
-            ]
-        
-        in_text_pattern = lambda cell: re.match(AuditFee.in_text_currency_amount_regex, cell)
-        currency_idx = {idx for row in table for idx, cell in enumerate(row) if currency_cell(cell)}
-        amount_idx = {idx for row in table for idx, cell in enumerate(row) if amount_cell(cell)}
-        
-        co_idx = currency_idx.intersection(amount_idx)
-        
-        last_two_idx = set(range(row_len - 2, row_len))
-        if not co_idx.intersection(last_two_idx):
-            return None
-        
-        for row in table:
-            col = [row[idx] for idx in co_idx ]
-            if map(currency_cell, [col[0]]):
-                if not all(map(amount_cell, col[1:])):
-                    return None
-            elif map(year_cell, [col[0]]):
-                if not all(map(amount_cell, col[2:])): #consider '-' case
-                    return None
-        
-        return table 
-
-
+        table = AuditFeeTable(section)
+        print(table.currency, table.unit, table.years, table.amount)
+        print(table.focus_col)
+        # print(table.raw_table)
+        # print(table.table)
+        return table.check_table()
 
     def target_section(self, p):
         
@@ -252,8 +199,122 @@ class AuditFee(TableOfContent):
             write_to_csv(result, 'result_3.csv')
 
 
+class AuditFeeTable:
+    
+    setting = {
+            "vertical_strategy": "text",
+            "horizontal_strategy": "text",
+            }
+
+    def __init__(self, section):
+        self.section = section
+    
+    @property
+    def raw_table(self):
+        return self.section.extract_table(AuditFeeTable.setting)
+    
+    @property
+    def table(self):
+        table = [
+            row for row in self.raw_table 
+            if any(map(AuditFeeTable.year_cell, row))
+            or any(map(AuditFeeTable.currency_cell, row)) 
+            or any(map(AuditFeeTable.amount_cell, row))
+        ]
+        return table
+
+
+    @staticmethod
+    def year_cell(cell:str) -> bool:
+        current_yr = int(datetime.datetime.now().year)
+        yr_range = range(current_yr - 1, current_yr + 1)
+        return cell in [str(yr) for yr in yr_range]
+    
+    @staticmethod
+    def amount_cell(cell:str) -> bool:
+        return re.match(AuditFee.currency_amount_regex, cell)
+    
+    @staticmethod
+    def currency_cell(cell:str) -> bool:
+        return re.match(AuditFee.currency_regex, cell)
+
+    @property
+    def co_idx(self) -> set:
+        currency_idx = {idx for row in self.table for idx, cell in enumerate(row) if self.currency_cell(cell)}
+        amount_idx = {idx for row in self.table for idx, cell in enumerate(row) if self.amount_cell(cell)}
+        co_idx = currency_idx.intersection(amount_idx)
+        return co_idx
+    
+   
+    @property
+    def focus_col(self):
+        return {idx : [row[idx] for row in self.table] for idx in self.co_idx}
+        
+    
+    @property
+    def amount(self):
+        amounts = []
+        for col in self.focus_col.values():
+            amount = [int(cell.replace(',','')) for cell in col if self.amount_cell(cell)]
+            amounts.append(amount)
+        return amounts
+        # return list(amount)
+        
+
+    @property
+    def years(self):
+        flatten_cols = sum(self.focus_col.values(), [])
+        get_year = lambda cell: cell if self.year_cell(cell) else None
+        years = set(filter(None, map(get_year, flatten_cols)))
+        return years if years else None
+
+
+    @property
+    def unit(self):
+        flatten_cols = sum(self.focus_col.values(), [])
+        unit_re_obj = set(filter(None, map(self.currency_cell, flatten_cols)))
+        get_unit = lambda x: x.group('unit')
+        unit = set(map(get_unit, unit_re_obj))
+        return unit if unit else None
+
+
+    @property
+    def currency(self):
+        flatten_cols = sum(self.focus_col.values(), [])
+        currency_re_obj = set(filter(None, map(self.currency_cell, flatten_cols)))
+        get_curr = lambda x: x.group('currency')
+        curr = set(map(get_curr, currency_re_obj))
+        return curr if curr else None
+
+    @property
+    def last2_idx(self) -> set:
+        row = self.table[0]
+        row_len = len(row)
+        return set(range(row_len - 2, row_len))
+
+    @property
+    def is_in_last_two_col(self) -> bool:
+        if self.co_idx.intersection(self.last2_idx):
+            return True
+        return False
+
+    @property
+    def is_in_format(self) -> bool:
+        for idx in self.co_idx:
+            if self.currency_cell(self.focus_col[idx][0]):
+                if not all(map(self.amount_cell, self.focus_col[idx][1:])):
+                    return False
+            if self.year_cell(self.focus_col[idx][0]):
+                if not self.currency_cell(self.focus_col[idx][1]) and not all(map(self.amount_cell, self.focus_col[idx][2:])):
+                    return False
+        return True
     
 
+    def check_table(self):
+        if not self.table: return None
+        if self.is_in_last_two_col and self.is_in_format:
+            return self.table
+        return None
 
 
 
@@ -277,17 +338,17 @@ if __name__ == "__main__":
     #     f.test()
     
 
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40 # wrong number row
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40 # wrong number row
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100445.pdf',33 # text
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900505.pdf', 40 # normal
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000620.pdf', 24 # normal
-    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf', 104 # normal
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf', 104 # normal
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000009.pdf', 76 # normal, with years
     
     pdf = PDF(url)
     pdf_obj = pdf.pdf_obj
     f = AuditFee(pdf_obj)
-    p = f.audit_fee_page[0]
+    p = f.audit_fee_page[1]
     section = f.target_section(p)
     table = f.get_table_from_section(section)
     # txt = f.section_txt
