@@ -6,7 +6,7 @@ sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 from get_pdf import _by_pdfplumber
 from helper import turn_n_page, is_landscape, is_full_cn, abnormal_page
 from helper import search_pattern_from_page_or_cols, validate_auditor
-import logging, datetime
+import logging, datetime, pdfplumber
 
 class AuditReport(TableOfContent):
     
@@ -75,8 +75,7 @@ class AuditFee(TableOfContent):
     audit_fee_regex = r"^(?!.*Nomination|.*Report)(?=.*REMUNERATION|.*independent|.*external|.*Accountability).*auditor.*$"
     currency_regex = r'(?P<currency>^[HK$USDRMB]{2,3})(?P<unit>(\W0{3})*$|\s*mil\.?(lion)?$)'
     currency_amount_regex = r'(?P<amount>^\d{1,3}(\W\d{3})*$|^-+$)'
-    # in_text_currency_amount_regex = r'(?P<amount>^\D{2,3}\d{1,3}(\W\d{3})*$)'
-    # Accountability and audit
+    
     
     def __init__(self, pdf_obj):
         super().__init__(pdf_obj)
@@ -94,39 +93,45 @@ class AuditFee(TableOfContent):
             verbose=True,
             show_matched=True
             )
+        
         target_pages = self.flatten_tuple(audit_fee_page)
         return target_pages
-    
+
     @property
-    def section_txt(self):
-        txt = []
-        for p in self.audit_fee_page:
-            section = self.target_section(p)
-            # return section.extract_text())
+    def sections(self):
+        return [self.target_section(page) for page in self.audit_fee_page]
+
+
+    @property
+    def txts(self):
+        txts = []
+        for section in self.sections:
             print(section.extract_text())
-            txt.append(section.extract_text())
-            return txt
+            txts.append(section.extract_text())
+        return txts
     
     @property
-    def section_tables(self):
+    def tables(self):
         tables = []
         for p in self.audit_fee_page:
             section = self.target_section(p)
-            tables.append(self.get_table_from_section(section))
-        return filter(None,tables)
+            print(f'Parsing table in page {p}...')
+            table = AuditFeeTable(section)
+            if table.check():
+                tables.append(table)
+        return tables
         
-    @staticmethod
-    def get_table_from_section(section:object):
-        table = AuditFeeTable(section)
-        print(table.currency, table.unit, table.years, table.amount)
-        print(table.focus_col)
-        print(table.summary)
-        # print(table.raw_table)
-        # print(table.table)
-        return table.check_table()
+    # @staticmethod
+    # def get_table_from_section(section:object):
+    #     table = AuditFeeTable(section)
+    #     print(table.currency, table.unit, table.years, table.amount)
+    #     print(table.focus_col)
+    #     print(table.summary)
+    #     # print(table.raw_table)
+    #     # print(table.table)
+    #     return table.check()
 
     def target_section(self, p):
-        
         with _by_pdfplumber(self.pdf_obj) as pdf:
             page = pdf.pages[p]
             df = pd.DataFrame(page.chars)
@@ -214,6 +219,16 @@ class AuditFeeTable:
     
     def __init__(self, section):
         self.section = section
+
+    @property
+    def section(self):
+        return self._section 
+    
+    @section.setter
+    def section(self, section: object):
+        if type(section) is not pdfplumber.page.CroppedPage:
+            raise ValueError(f'section type: {type(section)} is not pdfplumber.page.CroppedPage')
+        self._section = section
 
 
     @property
@@ -369,7 +384,7 @@ class AuditFeeTable:
     @property
     def summary(self):
         
-        if self.check_table() is None:
+        if self.check() is None:
             return None
         
         summary = {
@@ -385,7 +400,7 @@ class AuditFeeTable:
         return summary
 
 
-    def check_table(self):
+    def check(self):
         if not self.table: return None
         if self.is_in_last_two_col and self.is_in_format:
             return self.table
@@ -401,6 +416,7 @@ if __name__ == "__main__":
     from helper import write_to_csv, n_yearsago, today
     from helper import get_title_liked_txt, search_pattern_from_txt
     from get_pdf import _by_pdfplumber
+    
 
     # # logging.basicConfig(level=logging.INFO)
     # query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
@@ -415,19 +431,21 @@ if __name__ == "__main__":
 
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40 # wrong number row
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100445.pdf',33 # text
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900505.pdf', 40 # normal
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900505.pdf', 40 # normal
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000620.pdf', 24 # normal
-    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf', 104 # normal, two found result 
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf', 104 # normal, two found result 
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000009.pdf', 76 # normal, with years
     
     pdf = PDF(url)
     pdf_obj = pdf.pdf_obj
     f = AuditFee(pdf_obj)
-    p = f.audit_fee_page[0]
-    section = f.target_section(p)
-    table = f.get_table_from_section(section)
+    for table in f.tables:
+        print(table.summary)
+    # p = f.audit_fee_page[0]
+    # section = f.target_section(p)
+    # table = f.get_table_from_section(section)
     # txt = f.section_txt
-    print(table)
+    # print(table)
     # print(txt[0])
     # for row in table:
     #     print(row[1])
