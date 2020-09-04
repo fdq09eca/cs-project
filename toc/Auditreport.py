@@ -152,7 +152,12 @@ class AuditFee(TableOfContent):
         main_fontsizes = df['size'].mode()
         b_df = df[~df['size'].isin(main_fontsizes)]
         b_df = b_df.groupby(['top', 'bottom'])['text'].apply(''.join).reset_index()
-        condition = (b_df.top > self.target_top(df)) & (b_df.text.str.contains(r'\w+')) & (~b_df.text.str.contains(r'REMUNERATION', flags=re.IGNORECASE)) 
+        
+        lower_than_target_top = b_df.top > self.target_top(df)
+        not_empty = b_df.text.str.contains(r'\w+')
+        no_tailling_words = ~b_df.text.str.contains(r'^\s*REMUNERATION\s*$', flags=re.IGNORECASE)
+        # condition = (b_df.top > self.target_top(df)) & (b_df.text.str.contains(r'\w+')) & (~b_df.text.str.contains(r'REMUNERATION', flags=re.IGNORECASE)) 
+        condition = lower_than_target_top & not_empty & no_tailling_words
         # print(b_df)
         # print(self.target_top(df))
         
@@ -206,13 +211,16 @@ class AuditFeeTable:
             "horizontal_strategy": "text",
             }
 
+
     def __init__(self, section):
         self.section = section
-    
+
+
     @property
     def raw_table(self):
         return self.section.extract_table(AuditFeeTable.setting)
-    
+
+
     @property
     def table(self):
         table = [
@@ -229,62 +237,69 @@ class AuditFeeTable:
         current_yr = int(datetime.datetime.now().year)
         yr_range = range(current_yr - 1, current_yr + 1)
         return cell in [str(yr) for yr in yr_range]
-    
+
+
     @staticmethod
     def amount_cell(cell:str) -> bool:
         return re.match(AuditFee.currency_amount_regex, cell)
-    
+
+
     @staticmethod
     def currency_cell(cell:str) -> bool:
         return re.match(AuditFee.currency_regex, cell)
 
+
+    @property
+    def currency_idx(self):
+        return {idx for row in self.table for idx, cell in enumerate(row) if self.currency_cell(cell)}
+    
+
+    @property
+    def amount_idx(self):
+        return {idx for row in self.table for idx, cell in enumerate(row) if self.amount_cell(cell)}
+    
+
     @property
     def co_idx(self) -> set:
-        currency_idx = {idx for row in self.table for idx, cell in enumerate(row) if self.currency_cell(cell)}
-        amount_idx = {idx for row in self.table for idx, cell in enumerate(row) if self.amount_cell(cell)}
-        co_idx = currency_idx.intersection(amount_idx)
-        return co_idx
+        return self.currency_idx.intersection(self.amount_idx)
     
    
     @property
-    def focus_col(self):
+    def focus_col(self) -> dict:
         return {idx : [row[idx] for row in self.table] for idx in self.co_idx}
         
     
     @property
-    def amount(self):
+    def amount(self) -> list:
         amounts = []
+        str_to_int = lambda string : int(string.replace(',',''))
         for col in self.focus_col.values():
-            amount = [int(cell.replace(',','')) for cell in col if self.amount_cell(cell)]
+            amount = [str_to_int(cell) for cell in col if self.amount_cell(cell)]
             amounts.append(amount)
         return amounts
-        # return list(amount)
         
 
     @property
-    def years(self):
+    def years(self) -> set:
         flatten_cols = sum(self.focus_col.values(), [])
-        get_year = lambda cell: cell if self.year_cell(cell) else None
-        years = set(filter(None, map(get_year, flatten_cols)))
-        return years if years else None
+        years = {cell for cell in flatten_cols if self.year_cell(cell)}
+        return years
 
 
     @property
-    def unit(self):
+    def unit(self) -> set:
         flatten_cols = sum(self.focus_col.values(), [])
-        unit_re_obj = set(filter(None, map(self.currency_cell, flatten_cols)))
-        get_unit = lambda x: x.group('unit')
-        unit = set(map(get_unit, unit_re_obj))
-        return unit if unit else None
+        get_unit = lambda cell: self.currency_cell(cell).group('unit')
+        unit = {get_unit(cell) for cell in flatten_cols if self.currency_cell(cell)}
+        return unit
 
 
     @property
-    def currency(self):
+    def currency(self) -> set:
         flatten_cols = sum(self.focus_col.values(), [])
-        currency_re_obj = set(filter(None, map(self.currency_cell, flatten_cols)))
-        get_curr = lambda x: x.group('currency')
-        curr = set(map(get_curr, currency_re_obj))
-        return curr if curr else None
+        get_curr = lambda cell: self.currency_cell(cell).group('currency')
+        curr = {get_curr(cell) for cell in flatten_cols if self.currency_cell(cell)}
+        return curr
 
     @property
     def last2_idx(self) -> set:
@@ -309,6 +324,14 @@ class AuditFeeTable:
                     return False
         return True
     
+    @property
+    def summary(self):
+        if self.check_table() is None:
+            return None
+        summary = {
+            'currency': self.currency,
+        }
+
 
     def check_table(self):
         if not self.table: return None
@@ -340,15 +363,15 @@ if __name__ == "__main__":
 
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40 # wrong number row
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100445.pdf',33 # text
-    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900505.pdf', 40 # normal
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900505.pdf', 40 # normal
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000620.pdf', 24 # normal
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf', 104 # normal
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0728/2020072800460.pdf', 104 # normal, two found result 
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000009.pdf', 76 # normal, with years
     
     pdf = PDF(url)
     pdf_obj = pdf.pdf_obj
     f = AuditFee(pdf_obj)
-    p = f.audit_fee_page[1]
+    p = f.audit_fee_page[0]
     section = f.target_section(p)
     table = f.get_table_from_section(section)
     # txt = f.section_txt
