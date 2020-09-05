@@ -73,7 +73,8 @@ class AuditFee(TableOfContent):
     corporate_gov_report_regex = r'^(?=.*report).*corporate governance.*$'
     # audit_fee_regex = r"AUDIT.*?REMUNERATION|(external|independent|accountability).*auditor"
     audit_fee_regex = r"^(?!.*Nomination|.*Report)(?=.*REMUNERATION|.*independent|.*external|.*Accountability).*auditor.*$"
-    currency_regex = r'(?P<currency>^[(]*[HK$USDRMB]{2,3})(?P<unit>((\W?0{3})*|\s*mil\.?(lion)?)[)]*$)'
+    # currency_regex = r'(?P<currency>^[(]*[HK$USDRMB]{2,3})(?P<unit>((\W?0{3})*|\s*mil[lion ])[)]*$)'
+    currency_regex = r'(?P<currency>^[(]*[HK$USDRMB]{2,3})(?P<unit>((\W?0{3})*|\W?\s?mil[lion ]*)[)]*$)'
     currency_amount_regex = r'(?P<amount>^\d{1,3}(\W\d{3})*$|^[-–]+$)'
     
     
@@ -159,6 +160,8 @@ class AuditFee(TableOfContent):
     def target_bottom(self, df):
         main_fontsizes = df['size'].mode()
         b_df = df[~df['size'].isin(main_fontsizes)]
+        b_df = b_df[b_df['size'] > main_fontsizes.min()]
+        
         b_df = b_df.groupby(['top', 'bottom'])['text'].apply(''.join).reset_index()
         
         lower_than_target_top = b_df.top > self.target_top(df)
@@ -265,20 +268,34 @@ class AuditFeeTable:
     @staticmethod
     def currency_cell(cell:str) -> bool:
         return re.match(AuditFee.currency_regex, cell)
-
+    
+    @property
+    def year_idx(self) -> set: # col_idx
+        return {c_idx for row in self.table for c_idx, cell in enumerate(row) if self.year_cell(cell)}
 
     @property
-    def currency_idx(self):
-        return {idx for row in self.table for idx, cell in enumerate(row) if self.currency_cell(cell)}
+    def currency_idx(self) -> set: # col_idx
+        return {c_idx for row in self.table for c_idx, cell in enumerate(row) if self.currency_cell(cell)}
+    
+    @property
+    def amount_idx(self) -> set: # col_idx
+        return {c_idx for row in self.table for c_idx, cell in enumerate(row) if self.amount_cell(cell)}
+    
+    @property
+    def currency_row_idx(self) -> set:
+        return {r_idx for r_idx, row in enumerate(self.table) for cell in row if self.currency_cell(cell)}
+    
+    @property
+    def amount_row_idx(self) -> set:
+        return {r_idx for r_idx, row in enumerate(self.table) for cell in row if self.amount_cell(cell)}
+    
+    @property
+    def year_row_idx(self) -> set:
+        return {r_idx for r_idx, row in enumerate(self.table) for cell in row if self.year_cell(cell)}
     
 
     @property
-    def amount_idx(self):
-        return {idx for row in self.table for idx, cell in enumerate(row) if self.amount_cell(cell)}
-    
-
-    @property
-    def co_idx(self) -> set:
+    def co_idx(self) -> set: #co_col_idx
         return self.currency_idx.intersection(self.amount_idx)
     
    
@@ -420,21 +437,20 @@ if __name__ == "__main__":
     from helper import get_title_liked_txt, search_pattern_from_txt
     from get_pdf import _by_pdfplumber
     
+    def test():
+        # logging.basicConfig(level=logging.INFO)
+        query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
+        for data in query.data:
 
-    # # logging.basicConfig(level=logging.INFO)
-    # query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
-    # for data in query.data:
-        
-    #     url = data.file_link
-    #     print(url)
-    #     pdf = PDF(url)
-    #     pdf_obj = pdf.pdf_obj
-    #     f = AuditFee(pdf_obj)
-    #     for table in f.tables:
-    #         print(table.summary)
-            # print(f.raw_table)
+            url = data.file_link
+            print(url)
+            pdf = PDF(url)
+            pdf_obj = pdf.pdf_obj
+            f = AuditFee(pdf_obj)
+            for table in f.tables:
+                print(table.summary)
     
-
+    
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40 # wrong number row
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100445.pdf',33 # text
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900505.pdf', 40 # normal
@@ -443,14 +459,21 @@ if __name__ == "__main__":
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000009.pdf', 76 # normal, with years
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0904/2020090402077.pdf', 21 # with `-` amount
     # url , p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100934.pdf', 59 # hkd000
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0827/2020082700690.pdf', 41 # None type rawtable
-    pdf = PDF(url)
-    pdf_obj = pdf.pdf_obj
-    f = AuditFee(pdf_obj)
-    section = f.target_section(p)
-    print(section.extract_text())
-    table = AuditFeeTable(section)
-    print(table.raw_table)
-    print(table.table)
-    print(table.summary)
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0827/2020082700690.pdf', 41 # None type rawtable
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0830/2020083000035.pdf', 41
     
+    def debug(url, p):
+        pdf = PDF(url)
+        pdf_obj = pdf.pdf_obj
+        f = AuditFee(pdf_obj)
+
+        section = f.target_section(p)
+        print(section.extract_text())
+
+        table = AuditFeeTable(section)
+        print(table.raw_table)
+        print(table.table)
+        print(table.summary)
+    
+    # test()
+    debug(url, p)
