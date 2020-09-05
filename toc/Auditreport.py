@@ -119,21 +119,13 @@ class AuditFee(TableOfContent):
             section = self.target_section(p)
             print(f'Parsing table in page {p}...')
             table = AuditFeeTable(section)
-            if table.check():
-                tables.append(table)
-            else:
-                print(table.raw_table)
+            tables.append(table)
+            # if table.check():
+            #     tables.append(table)
+            # else:
+            #     print(table.raw_table)
         return tables
         
-    # @staticmethod
-    # def get_table_from_section(section:object):
-    #     table = AuditFeeTable(section)
-    #     print(table.currency, table.unit, table.years, table.amount)
-    #     print(table.focus_col)
-    #     print(table.summary)
-    #     # print(table.raw_table)
-    #     # print(table.table)
-    #     return table.check()
 
     def target_section(self, p):
         with _by_pdfplumber(self.pdf_obj) as pdf:
@@ -161,21 +153,19 @@ class AuditFee(TableOfContent):
     def target_bottom(self, df):
         main_fontsizes = df['size'].mode()
         b_df = df[~df['size'].isin(main_fontsizes)]
-        b_df = b_df[b_df['size'] > main_fontsizes.min()]
+        b_df = b_df[b_df['size'] > main_fontsizes.min()] #?
         
         b_df = b_df.groupby(['top', 'bottom'])['text'].apply(''.join).reset_index()
         
         lower_than_target_top = b_df.top > self.target_top(df)
         not_empty = b_df.text.str.contains(r'\w+')
         no_tailling_words = ~b_df.text.str.contains(r'REMUNERATION', flags=re.IGNORECASE)
-        # condition = (b_df.top > self.target_top(df)) & (b_df.text.str.contains(r'\w+')) & (~b_df.text.str.contains(r'REMUNERATION', flags=re.IGNORECASE)) 
         condition = lower_than_target_top & not_empty & no_tailling_words
         # print(b_df)
         # print(self.target_top(df))
         
         try:
             next_title = b_df[condition].head(1)
-            # print(next_title)
             target_bottom = next_title.top.values[0]
         except IndexError as e:
             logging.warning(f'No next title, see error: {e}')
@@ -186,34 +176,6 @@ class AuditFee(TableOfContent):
     @staticmethod
     def flatten_tuple(list_of_tuple) -> tuple:
         return sum(list_of_tuple, ())
-
-    
-    def test(self):
-        from helper import write_to_csv
-        
-        # result = {}
-        # result['report_page_range'] = self.page_range
-        # result['f.audit_fee_page'] = self.audit_fee_page
-        # result['f.matched_pattern'] = self.matched_pattern
-        # result['url'] = url
-        # write_to_csv(result, 'result_3.csv')
-        
-        try:
-            result = {}
-            # result['report_page_range'] = self.page_range
-            # result['f.audit_fee_page'] = self.audit_fee_page
-            # result['f.matched_pattern'] = self.matched_pattern
-            # result['url'] = url
-            result['txt'] = self.section_txt
-            result['url'] = url
-            write_to_csv(result, 'result_3.csv')
-        
-        except Exception as e:
-            # result['report_page_range'] = 'ERROR'
-            result['txt'] = 'ERROR'
-            # result['f.audit_fee_page'] = e
-            result['url'] = url
-            write_to_csv(result, 'result_3.csv')
 
 
 class AuditFeeTable:
@@ -271,29 +233,30 @@ class AuditFeeTable:
         return re.match(AuditFee.currency_regex, cell)
     
     @property
-    def year_idx(self) -> set: # col_idx
+    def year_idx(self) -> set:
         return {(r_idx, c_idx) for r_idx, row in enumerate(self.table) for c_idx, cell in enumerate(row) if self.year_cell(cell)}
 
     @property
-    def currency_idx(self) -> set: # col_idx
+    def currency_idx(self) -> set:
         return {(r_idx, c_idx) for r_idx, row in enumerate(self.table) for c_idx, cell in enumerate(row) if self.currency_cell(cell)}
     
     @property
-    def amount_idx(self) -> set: # col_idx
+    def amount_idx(self) -> set:
         return {(r_idx, c_idx) for r_idx, row in enumerate(self.table) for c_idx, cell in enumerate(row) if self.amount_cell(cell)}
     
     
     @property
-    def co_row_idx(self) -> set: #co_col_idx
+    def co_row_idx(self) -> set:
         row_idx = lambda idx: idx[0]
         year_row_idx = {row_idx(idx) for idx in self.year_idx}
         currency_row_idx = {row_idx(idx) for idx in self.currency_idx}
         amount_row_idx = {row_idx(idx) for idx in self.amount_idx}
         if year_row_idx:
             idxs = [year_row_idx, amount_row_idx, currency_row_idx]
-            col_row_idxs = flatten([list(i.intersection(j))  for i, j in combinations(idxs, 2) if i.intersection(j)])
+            col_row_idxs = flatten([list(i.intersection(j)) for i, j in combinations(idxs, 2) if i.intersection(j)])
             return set(col_row_idxs)
         return currency_row_idx.intersection(amount_row_idx)
+
 
     @property
     def co_col_idx(self) -> set: 
@@ -303,7 +266,7 @@ class AuditFeeTable:
         amount_col_idx = {col_idx(idx) for idx in self.amount_idx}
         if year_col_idx:
             idxs = [year_col_idx, amount_col_idx, currency_col_idx]
-            col_col_idxs = flatten([list(i.intersection(j))  for i, j in combinations(idxs, 2) if i.intersection(j)])
+            col_col_idxs = flatten([list(i.intersection(j)) for i, j in combinations(idxs, 2) if i.intersection(j)])
             return set(col_col_idxs)
         return currency_col_idx.intersection(amount_col_idx)
     
@@ -451,17 +414,23 @@ if __name__ == "__main__":
         # logging.basicConfig(level=logging.INFO)
         query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
         for data in query.data:
-
             url = data.file_link
             print(url)
+            
             pdf = PDF(url)
             pdf_obj = pdf.pdf_obj
-            f = AuditFee(pdf_obj)
-            for table in f.tables:
-                print(table.summary)
+            f = AuditFee(pdf_obj) 
+            result = {
+            'table_summary' : [table.summary for table in f.tables],
+            # 'table' : [table.table for table in f.tables],
+            # 'raw_table' : [table.raw_table for table in f.tables],
+            'url' : url,
+            }
+            write_to_csv(result,  'result_3.csv')
+                
     
-    
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40 # wrong number row
+       
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40 # wrong number row
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100445.pdf',33 # text
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900505.pdf', 40 # normal
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000620.pdf', 24 # normal
@@ -491,5 +460,5 @@ if __name__ == "__main__":
         print(table.table)
         print(table.summary)
     
-    # test()
-    debug(url, p)
+    test()
+    # debug(url, p)
