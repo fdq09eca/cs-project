@@ -4,8 +4,9 @@ from toc import TableOfContent
 from os import sys, path
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 from get_pdf import _by_pdfplumber
-from helper import turn_n_page, is_landscape, is_full_cn, abnormal_page
+from helper import turn_n_page, is_landscape, is_full_cn, abnormal_page, flatten
 from helper import search_pattern_from_page_or_cols, validate_auditor
+from itertools import combinations
 import logging, datetime, pdfplumber
 
 class AuditReport(TableOfContent):
@@ -256,7 +257,7 @@ class AuditFeeTable:
     @staticmethod
     def year_cell(cell:str) -> bool:
         current_yr = int(datetime.datetime.now().year)
-        yr_range = range(current_yr - 1, current_yr + 1)
+        yr_range = range(current_yr - 2, current_yr + 1)
         return cell in [str(yr) for yr in yr_range]
 
 
@@ -271,37 +272,45 @@ class AuditFeeTable:
     
     @property
     def year_idx(self) -> set: # col_idx
-        return {c_idx for row in self.table for c_idx, cell in enumerate(row) if self.year_cell(cell)}
+        return {(r_idx, c_idx) for r_idx, row in enumerate(self.table) for c_idx, cell in enumerate(row) if self.year_cell(cell)}
 
     @property
     def currency_idx(self) -> set: # col_idx
-        return {c_idx for row in self.table for c_idx, cell in enumerate(row) if self.currency_cell(cell)}
+        return {(r_idx, c_idx) for r_idx, row in enumerate(self.table) for c_idx, cell in enumerate(row) if self.currency_cell(cell)}
     
     @property
     def amount_idx(self) -> set: # col_idx
-        return {c_idx for row in self.table for c_idx, cell in enumerate(row) if self.amount_cell(cell)}
+        return {(r_idx, c_idx) for r_idx, row in enumerate(self.table) for c_idx, cell in enumerate(row) if self.amount_cell(cell)}
+    
     
     @property
-    def currency_row_idx(self) -> set:
-        return {r_idx for r_idx, row in enumerate(self.table) for cell in row if self.currency_cell(cell)}
-    
-    @property
-    def amount_row_idx(self) -> set:
-        return {r_idx for r_idx, row in enumerate(self.table) for cell in row if self.amount_cell(cell)}
-    
-    @property
-    def year_row_idx(self) -> set:
-        return {r_idx for r_idx, row in enumerate(self.table) for cell in row if self.year_cell(cell)}
-    
+    def co_row_idx(self) -> set: #co_col_idx
+        row_idx = lambda idx: idx[0]
+        year_row_idx = {row_idx(idx) for idx in self.year_idx}
+        currency_row_idx = {row_idx(idx) for idx in self.currency_idx}
+        amount_row_idx = {row_idx(idx) for idx in self.amount_idx}
+        if year_row_idx:
+            idxs = [year_row_idx, amount_row_idx, currency_row_idx]
+            col_row_idxs = flatten([list(i.intersection(j))  for i, j in combinations(idxs, 2) if i.intersection(j)])
+            return set(col_row_idxs)
+        return currency_row_idx.intersection(amount_row_idx)
 
     @property
-    def co_idx(self) -> set: #co_col_idx
-        return self.currency_idx.intersection(self.amount_idx)
+    def co_col_idx(self) -> set: 
+        col_idx = lambda idx: idx[1]
+        year_col_idx = {col_idx(idx) for idx in self.year_idx}
+        currency_col_idx = {col_idx(idx) for idx in self.currency_idx}
+        amount_col_idx = {col_idx(idx) for idx in self.amount_idx}
+        if year_col_idx:
+            idxs = [year_col_idx, amount_col_idx, currency_col_idx]
+            col_col_idxs = flatten([list(i.intersection(j))  for i, j in combinations(idxs, 2) if i.intersection(j)])
+            return set(col_col_idxs)
+        return currency_col_idx.intersection(amount_col_idx)
     
    
     @property
     def focus_col(self) -> dict:
-        return {idx : [row[idx] for row in self.table] for idx in self.co_idx}
+        return {idx : [row[idx] for row in self.table] for idx in self.co_col_idx}
         
     
     @property
@@ -382,13 +391,13 @@ class AuditFeeTable:
 
     @property
     def is_in_last_two_col(self) -> bool:
-        if self.co_idx.intersection(self.last2_idx):
+        if self.co_col_idx.intersection(self.last2_idx):
             return True
         return False
 
     @property
     def is_in_format(self) -> bool:
-        for idx in self.co_idx:
+        for idx in self.co_col_idx:
             
             if self.currency_cell(self.focus_col[idx][0]):
                 if not all(map(self.amount_cell, self.focus_col[idx][1:])):
@@ -421,7 +430,8 @@ class AuditFeeTable:
 
 
     def check(self):
-        if not self.table: return None
+        if not self.table or not self.co_col_idx or self.co_row_idx:
+            return None
         if self.is_in_last_two_col and self.is_in_format:
             return self.table
         return None
@@ -451,7 +461,7 @@ if __name__ == "__main__":
                 print(table.summary)
     
     
-    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40 # wrong number row
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf', 40 # wrong number row
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100445.pdf',33 # text
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900505.pdf', 40 # normal
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000620.pdf', 24 # normal
@@ -460,7 +470,7 @@ if __name__ == "__main__":
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0904/2020090402077.pdf', 21 # with `-` amount
     # url , p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100934.pdf', 59 # hkd000
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0827/2020082700690.pdf', 41 # None type rawtable
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0830/2020083000035.pdf', 41
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0830/2020083000035.pdf', 41 # abnormal
     
     def debug(url, p):
         pdf = PDF(url)
@@ -471,7 +481,13 @@ if __name__ == "__main__":
         print(section.extract_text())
 
         table = AuditFeeTable(section)
-        print(table.raw_table)
+        print('curr_idx:', table.currency_idx)
+        print("amount_idx:", table.amount_idx)
+        print("year_idx", table.year_idx)
+        print("co_row_idx:", table.co_row_idx)
+        print("co_col_idx:",table.co_col_idx)
+
+        # print(table.raw_table)
         print(table.table)
         print(table.summary)
     
