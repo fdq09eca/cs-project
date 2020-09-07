@@ -75,7 +75,7 @@ class AuditFee(TableOfContent):
     # audit_fee_regex = r"AUDIT.*?REMUNERATION|(external|independent|accountability).*auditor"
     audit_fee_regex = r"^(?!.*Nomination|.*Report)(?=.*REMUNERATION|.*independent|.*external|.*Accountability).*auditor.*$"
     # currency_regex = r'(?P<currency>^[(]*[HK$USDRMB]{2,3})(?P<unit>((\W?0{3})*|\s*mil[lion ])[)]*$)'
-    currency_regex = r'(?P<currency>^[(]*[HK$USDRMB]{2,3})(?P<unit>((\W?0{3})*|\W?\s?mil[lion ]*)[)]*$)'
+    currency_regex = r'(?P<currency>^[(]*[HK$USDRMB]{2,3}|¥)\s?(?P<unit>((\W?0{3})*|\W?mil[lion ]*)[)]*$)'
     currency_amount_regex = r'(?P<amount>^\d{1,3}(\W\d{3})*$|^[-–]+$)'
     
     
@@ -133,13 +133,42 @@ class AuditFee(TableOfContent):
             df = pd.DataFrame(page.chars)
             df = df[~df.text.str.contains(r'[^\x00-\x7F]+')]
             
-            x0, x1 = 0, float(page.width)
+            # x0, x1 = 0, float(page.width)
+            target_x0, target_x1 = float(self.target_x0(df)), float(self.target_x1(df))
+            # print(tagert_x0, tagert_x1)
             target_top = float(self.target_top(df))
             target_bottom = self.target_bottom(df) or page.height
-            
-            section = page.crop((x0, target_top , x1, float(target_bottom)), relative=True)
-            
+            # section = page.crop((x0, target_top , x1, float(target_bottom)), relative=True)            
+            section = page.crop((target_x0, target_top , target_x1, float(target_bottom)), relative=True)            
             return section
+
+    def target_x0(self, df):
+        main_fontsizes = df['fontname'].mode()
+        t_df = df[~df['fontname'].isin(main_fontsizes)]
+        target_x0 = t_df[t_df.top == self.target_top(df)]['x0'].min()
+        return target_x0
+    
+    def target_x1(self, df):
+        main_fontsizes = df['fontname'].mode()
+        t_df = df[df['fontname'].isin(main_fontsizes)]
+        feature_text_x0s = t_df.groupby(['top', 'bottom', 'fontname' , 'size'])['x0'].min()
+        # print(feature_text_x0s)
+        feature_text_x1s = t_df.groupby(['top', 'bottom', 'fontname' , 'size'])['x1'].max()
+        if feature_text_x0s.min() != self.target_x0(df):
+            print('there is another column')
+            # return feature_text_x0s.max()
+        return feature_text_x1s.max()
+
+
+
+        # print(target_x0)
+        return target_x0
+
+
+
+        # main_fontnames = df['fontname'].mode()
+        # main_font_df = df[df['fontname'].isin(main_fontnames)]
+        # return main_font_df.x1.max()
 
 
     def target_top(self, df):
@@ -149,18 +178,31 @@ class AuditFee(TableOfContent):
         target_top = t_df[t_df.text.str.contains(AuditFee.audit_fee_regex, flags=re.IGNORECASE)]['top'].values[0]
         return target_top
 
+
+    def target_top_size(self, df):
+        main_fontsizes = df['fontname'].mode()
+        t_df = df[~df['fontname'].isin(main_fontsizes)]
+        t_df = t_df.groupby(['top', 'bottom', 'fontname' , 'size'])['text'].apply(''.join).reset_index()
+        target_top_size = t_df[t_df.text.str.contains(AuditFee.audit_fee_regex, flags=re.IGNORECASE)]['size'].values[0]
+        return target_top_size
+
     
     def target_bottom(self, df):
+        
+        # print(df.columns)
         main_fontsizes = df['size'].mode()
         b_df = df[~df['size'].isin(main_fontsizes)]
         b_df = b_df[b_df['size'] > main_fontsizes.min()] #?
-        
+        if b_df.empty:
+            print('df is empty.')
+            return None
         b_df = b_df.groupby(['top', 'bottom'])['text'].apply(''.join).reset_index()
-        
-        lower_than_target_top = b_df.top > self.target_top(df)
+        lower_than_target_top = b_df['top'] > self.target_top(df) + self.target_top_size(df) * 2 # for two rows title..
         not_empty = b_df.text.str.contains(r'\w+')
-        no_tailling_words = ~b_df.text.str.contains(r'REMUNERATION', flags=re.IGNORECASE)
-        condition = lower_than_target_top & not_empty & no_tailling_words
+        not_single_char = b_df.text.str.len() != 1
+        # no_tailling_words = ~b_df.text.str.contains(r'REMUNERATION', flags=re.IGNORECASE)
+        # condition = lower_than_target_top & not_empty & no_tailling_words
+        condition = lower_than_target_top & not_empty & not_single_char
         # print(b_df)
         # print(self.target_top(df))
         
@@ -185,7 +227,7 @@ class AuditFeeTable:
             "horizontal_strategy": "text",
             }
     
-    def __init__(self, section):
+    def __init__(self, section: object):
         self.section = section
 
     @property
@@ -205,32 +247,50 @@ class AuditFeeTable:
 
 
     @property
-    def table(self):
+    def table(self) -> list:
 
         table = [
             row for row in self.raw_table 
-            if any(map(AuditFeeTable.year_cell, row))
-            or any(map(AuditFeeTable.currency_cell, row)) 
-            or any(map(AuditFeeTable.amount_cell, row))
+            if self.year_row(row)
+            or self.currency_row(row)
+            or self.amount_row(row)
         ]
+
         return table
-
-
+    
+    @staticmethod
+    def year_row(row:list) -> bool:
+        return any(map(AuditFeeTable.year_cell, row))
+    
+    @staticmethod
+    def currency_row(row:list) -> bool:
+        return any(map(AuditFeeTable.currency_cell, row))
+    
+    @staticmethod
+    def total_row(row:list) -> bool:
+        return any(map(AuditFeeTable.total_cell, row))
+    
+    @staticmethod
+    def amount_row(row:list) -> bool:
+        return any(map(AuditFeeTable.amount_cell, row)) and not AuditFeeTable.total_row(row)
+    
     @staticmethod
     def year_cell(cell:str) -> bool:
         current_yr = int(datetime.datetime.now().year)
         yr_range = range(current_yr - 2, current_yr + 1)
         return cell in [str(yr) for yr in yr_range]
 
+    @staticmethod
+    def currency_cell(cell:str) -> bool:
+        return re.match(AuditFee.currency_regex, cell)
+
+    @staticmethod
+    def total_cell(cell:str) -> bool:
+        return re.match(r'total', cell, flags=re.IGNORECASE)
 
     @staticmethod
     def amount_cell(cell:str) -> bool:
         return re.match(AuditFee.currency_amount_regex, cell)
-
-
-    @staticmethod
-    def currency_cell(cell:str) -> bool:
-        return re.match(AuditFee.currency_regex, cell)
     
     @property
     def year_idx(self) -> set:
@@ -244,7 +304,6 @@ class AuditFeeTable:
     def amount_idx(self) -> set:
         return {(r_idx, c_idx) for r_idx, row in enumerate(self.table) for c_idx, cell in enumerate(row) if self.amount_cell(cell)}
     
-    
     @property
     def co_row_idx(self) -> set:
         row_idx = lambda idx: idx[0]
@@ -256,7 +315,6 @@ class AuditFeeTable:
             col_row_idxs = flatten([list(i.intersection(j)) for i, j in combinations(idxs, 2) if i.intersection(j)])
             return set(col_row_idxs)
         return currency_row_idx.intersection(amount_row_idx)
-
 
     @property
     def co_col_idx(self) -> set: 
@@ -274,16 +332,35 @@ class AuditFeeTable:
     @property
     def focus_col(self) -> dict:
         return {idx : [row[idx] for row in self.table] for idx in self.co_col_idx}
+    
+    @staticmethod
+    def remove_subtotal(li:list) -> list:
         
+        li_copy = li.copy()
+        ## remove sub-totals
+        for idx, x in enumerate(li):
+            check_idx = -idx - 1
+            check_li, check_total = li[:check_idx], li[check_idx]
+            check_sum = 0
+            for i in check_li[::-1]:
+                check_sum += i
+                if check_sum == check_total:
+                    li_copy.pop(check_idx)
+                    break
+        return li_copy
     
     @property
     def amount(self) -> list:
         amounts = []
-        str_to_int = lambda string : int(re.sub(r'[-–]','0',string.replace(',','')))
+
+        str_to_int = lambda string : int(re.sub(r'[-–]|N/A','0',string.replace(',','')))
+        
         for col in self.focus_col.values():
             amount = [str_to_int(cell) for cell in col if self.amount_cell(cell)]
-            if sum(amount[:-1]) == amount[-1]:
-                amount = amount[:-1]
+            try:
+                amount = self.remove_subtotal(amount)
+            except IndexError as e:
+                pass
             amounts.append(amount)
         return amounts
     
@@ -304,13 +381,11 @@ class AuditFeeTable:
         
         return amounts
 
-
     @property
     def years(self) -> set:
         flatten_cols = sum(self.focus_col.values(), [])
         years = {cell for cell in flatten_cols if self.year_cell(cell)}
         return years
-
 
     @property
     def unit(self) -> set:
@@ -327,17 +402,17 @@ class AuditFeeTable:
         
         thousand_regex = r'0{3}'
         n_100 = lambda unit: len(re.findall(thousand_regex, unit))
-        mil_regex = 'mil(lion)?\s*'
+        is_mil = lambda unit: re.match('mil(lion)?', unit)
         
         for unit in self.unit:
             if n_100(unit):
                 unit_in_num.add(1_000 ** n_100(unit))
-            elif re.match(mil_regex, unit):
+            elif is_mil(unit):
                 unit_in_num.add(1_000_000)
             else:
                 unit_in_num.add(unit)
-        return unit_in_num
         
+        return unit_in_num
 
     @property
     def currency(self) -> set:
@@ -388,12 +463,11 @@ class AuditFeeTable:
             'actual_amount': self.actual_amount,
             'total': list(map(sum, self.actual_amount)),
         }
-        
         return summary
 
 
     def check(self):
-        if not self.table or not self.co_col_idx or self.co_row_idx:
+        if not (self.table or self.co_col_idx) or self.co_row_idx:
             return None
         if self.is_in_last_two_col and self.is_in_format:
             return self.table
@@ -410,23 +484,48 @@ if __name__ == "__main__":
     from helper import get_title_liked_txt, search_pattern_from_txt
     from get_pdf import _by_pdfplumber
     
+    def find_file(url):
+        query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
+        idx = [i+1 for i, data in enumerate(query.data) if data.file_link == url][0]
+        print(idx)
+        print([data for data in query.data][idx])
+
     def test():
         # logging.basicConfig(level=logging.INFO)
         query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
         for data in query.data:
-            url = data.file_link
-            print(url)
-            
-            pdf = PDF(url)
-            pdf_obj = pdf.pdf_obj
-            f = AuditFee(pdf_obj) 
-            result = {
-            'table_summary' : [table.summary for table in f.tables],
-            # 'table' : [table.table for table in f.tables],
-            # 'raw_table' : [table.raw_table for table in f.tables],
-            'url' : url,
-            }
-            write_to_csv(result,  'result_3.csv')
+            try:
+                url = data.file_link
+                # url = 'https://www.dropbox.com/'
+                print(url)
+
+                pdf = PDF(url)
+                pdf_obj = pdf.pdf_obj
+                f = AuditFee(pdf_obj) 
+                tab_sum = []
+                for table in f.tables:
+                    tab_sum.append(table.summary)
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                # print(e)
+                result = {
+                'table_summary' : e,
+                'ERROR': True,
+                'url' : url,
+                }
+                write_to_csv(result,  'result_3.csv')
+                continue
+            else:
+                # print('ok')
+                result = {
+                'table_summary' : list(filter(None, tab_sum)),
+                'ERROR': None,
+                'url' : url
+                }
+                write_to_csv(result,  'result_3.csv')
+
+
                 
     
        
@@ -440,7 +539,19 @@ if __name__ == "__main__":
     # url , p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0831/2020083100934.pdf', 59 # hkd000
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0827/2020082700690.pdf', 41 # None type rawtable
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0830/2020083000035.pdf', 41 # abnormal
-    
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0823/2020082300051.pdf', 73
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900636.pdf', 33
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0729/2020072900390.pdf', 24
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90 # 2 cols
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0408/2020040800383.pdf', 63, #one col
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0407/2020040700576.pdf',56 # porblem, section last too long, cut too much
+    # url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20, # problem, noise case, two cols
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1016/ltn20191016043.pdf', 45 # million ¥, 1 col
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0330/2020033001347.pdf' # problem, neg height
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000783.pdf', 27
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0420/2020042000602.pdf', 43
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0724/2020072400558.pdf', 41,
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0727/2020072700598.pdf', 27
     def debug(url, p):
         pdf = PDF(url)
         pdf_obj = pdf.pdf_obj
@@ -450,15 +561,16 @@ if __name__ == "__main__":
         print(section.extract_text())
 
         table = AuditFeeTable(section)
-        print('curr_idx:', table.currency_idx)
-        print("amount_idx:", table.amount_idx)
-        print("year_idx", table.year_idx)
-        print("co_row_idx:", table.co_row_idx)
-        print("co_col_idx:",table.co_col_idx)
+        # print('curr_idx:', table.currency_idx)
+        # print("amount_idx:", table.amount_idx)
+        # print("year_idx", table.year_idx)
+        # print("co_row_idx:", table.co_row_idx)
+        # print("co_col_idx:",table.co_col_idx)
 
         # print(table.raw_table)
         print(table.table)
         print(table.summary)
     
-    test()
-    # debug(url, p)
+    # test()
+    # find_file(url)
+    debug(url, p)

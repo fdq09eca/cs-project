@@ -180,3 +180,6 @@ if found_str:
     memorised_firm[idx].append(found_str)
   return found_str
 ```
+
+text_case
+`https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0824/2020082401066.pdf`
