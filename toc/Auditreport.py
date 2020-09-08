@@ -133,14 +133,21 @@ class AuditFee(TableOfContent):
             df = pd.DataFrame(page.chars)
             df = df[~df.text.str.contains(r'[^\x00-\x7F]+')]
             
-            # x0, x1 = 0, float(page.width)
             target_x0, target_x1 = float(self.target_x0(df)), float(self.target_x1(df))
-            # print(tagert_x0, tagert_x1)
             target_top = float(self.target_top(df))
             target_bottom = self.target_bottom(df) or page.height
+            # print(tagert_x0, tagert_x1)
+            # x0, x1 = 0, float(page.width)
             # section = page.crop((x0, target_top , x1, float(target_bottom)), relative=True)            
             section = page.crop((target_x0, target_top , target_x1, float(target_bottom)), relative=True)            
             return section
+        
+    def target_font(self, df):
+        main_fontsizes = df['fontname'].mode()
+        t_df = df[~df['fontname'].isin(main_fontsizes)]
+        t_df = t_df.groupby(['top', 'bottom', 'fontname' , 'size'])['text'].apply(''.join).reset_index()
+        target_font = t_df[t_df.text.str.contains(AuditFee.audit_fee_regex, flags=re.IGNORECASE)]['fontname'].values[0]
+        return target_font
 
     def target_x0(self, df):
         main_fontsizes = df['fontname'].mode()
@@ -151,25 +158,9 @@ class AuditFee(TableOfContent):
     def target_x1(self, df):
         main_fontsizes = df['fontname'].mode()
         t_df = df[df['fontname'].isin(main_fontsizes)]
-        feature_text_x0s = t_df.groupby(['top', 'bottom', 'fontname' , 'size'])['x0'].min()
-        # print(feature_text_x0s)
         feature_text_x1s = t_df.groupby(['top', 'bottom', 'fontname' , 'size'])['x1'].max()
-        if feature_text_x0s.min() != self.target_x0(df):
-            print('there is another column')
-            # return feature_text_x0s.max()
-        return feature_text_x1s.max()
-
-
-
-        # print(target_x0)
-        return target_x0
-
-
-
-        # main_fontnames = df['fontname'].mode()
-        # main_font_df = df[df['fontname'].isin(main_fontnames)]
-        # return main_font_df.x1.max()
-
+        target_x1 = feature_text_x1s.max()
+        return target_x1
 
     def target_top(self, df):
         main_fontsizes = df['fontname'].mode()
@@ -188,8 +179,6 @@ class AuditFee(TableOfContent):
 
     
     def target_bottom(self, df):
-        
-        # print(df.columns)
         main_fontsizes = df['size'].mode()
         b_df = df[~df['size'].isin(main_fontsizes)]
         b_df = b_df[b_df['size'] > main_fontsizes.min()] #?
@@ -345,7 +334,7 @@ class AuditFeeTable:
             for i in check_li[::-1]:
                 check_sum += i
                 if check_sum == check_total:
-                    li_copy.pop(check_idx)
+                    li_copy.remove(check_total)
                     break
         return li_copy
     
@@ -571,6 +560,6 @@ if __name__ == "__main__":
         print(table.table)
         print(table.summary)
     
-    # test()
+    test()
     # find_file(url)
-    debug(url, p)
+    # debug(url, p)

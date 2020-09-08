@@ -1,6 +1,7 @@
 from io import BytesIO
 from typing import Union, Pattern, Match
 from contextlib import contextmanager
+import pandas as pd
 import requests, re, logging, pdfplumber
 
 
@@ -50,18 +51,193 @@ class PDF:
             byte_obj = BytesIO(response.content)
         return byte_obj
 
+    def get_page(self, p:int):
+        pdf =  pdfplumber.open(self.pdf_obj)
+        return Page(pdf.pages[p])
+    
+
+    @staticmethod
+    def crop_page(page:object, bbox:tuple):
+        if not isinstance(page, pdfplumber.page.Page):
+            raise TypeError('page is not pdfplumber.page.Page')
+        return page.crop(bbox, relative = True)
+    
+
+    @staticmethod
+    def get_text(page):
+        if not isinstance(page, pdfplumber.page.Page):
+            raise TypeError('page is not pdfplumber.page.Page')
+        return page.extract_text()
+    
+
     def __repr__(self):
         return f'{self.__class__.__name__}(src="{self.src}")'
+
+class Restorer:
+
+    def __init__(self, varName):
+        self.varName = varName
+
+    def __enter__(self):
+        self.oldValue = globals()[self.varName]
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        globals()[self.varName] = self.oldValue
+
+
+class Page:
+    
+    def __init__(self, page):
+        self.page = page
+        self.df_lang = None
+        self.left_col = None
+        self.right_col = None
+    
+    @property
+    def page_number(self) -> int:
+        return self.page.page_number - 1
+    
+    @property
+    def text(self) -> str:
+        txt = self.page.extract_text()
+        txt = txt.replace('ﬁ', 'fi') # must clean before chinese
+        txt = re.sub(r'\ufeff', ' ', txt)  # clear BOM
+        return txt
+    
+    @property
+    def en_text(self) -> str:
+        return re.sub(r"([^\x00-\x7F])+", "", self.text)
+    
+    @property
+    def cn_text(self) -> str:
+        return re.sub(r"([\x00-\x7F])+", "", self.text)
+    
+    # @property 
+    # def feature_text(self):
+    #     pass
+    
+    @property
+    def df_char(self) -> pd.DataFrame:
+        df = pd.DataFrame(self.page.chars)
+        df_langs = {
+             'en': df[~df['text'].str.contains(r'[^\x00-\x7F]+')],
+             'cn': df[df['text'].str.contains(r'[^\x00-\x7F]+')]
+        }
+        return df_langs.get(self.df_lang, df)
+    
+
+    @property
+    def main_fontname(self) -> pd.Series:
+        return self.df_char['fontname'].mode()
+    
+    @property
+    def df_main_text(self) -> pd.DataFrame:
+        mt_df = self.df_char[self.df_char['fontname'].isin(self.main_fontname)]
+        return mt_df
+    
+    @property
+    def main_text_bbox(self) -> tuple:
+        
+        def bbox(self, lang):
+            self.df_lang = lang
+            if self.df_main_text.empty:
+                return None
+            x0, top = self.df_main_text[['x0','top']].min()
+            x1, bottom = self.df_main_text[['x1','bottom']].max()
+            self.df_lang = None
+            print(lang, x0, top, x1, bottom)
+            return x0, top, x1, bottom
+        
+        en_bbx, cn_bbx = bbox(self, 'en'), bbox(self, 'cn')
+        
+        if cn_bbx is None:
+            return en_bbx 
+        x0, top, x1, bottom = zip(en_bbx, cn_bbx)
+        return min(x0), min(top), max(x1), max(bottom)
+    
+
+    def remove_noise(self) -> None:
+        page = self.page.crop(self.main_text_bbox, relative=True)
+        self.page = page
+        
+
+    @property
+    def main_fontsize(self) -> pd.Series:
+        return self.df_main_text['size'].mode()
+    
+    @property
+    def df_feature_text(self) -> pd.DataFrame:
+        self.df_lang = 'en'
+        c_df = self.df_char[~self.df_char['fontname'].isin(self.main_fontname)]
+        ft_df = c_df.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        self.df_lang = None
+        return ft_df
+    
+    @property
+    def col_x0(self):
+        # self.df_feautre_text.x0
+        pass
+
+    @property
+    def df_title_text(self) -> pd.DataFrame:
+        self.df_lang = 'en'
+        c_df = self.df_char[self.df_char.size.gt(self.main_fontsize.max())]
+        tt_df = c_df.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        self.df_lang = None
+        return tt_df
+
+    
+    @property
+    def is_landscape(self) -> bool:
+        return self.page.width > self.page.height
+    
+    @property
+    def is_full_cn(self) -> bool:
+        txt = re.sub("\n+|\s+", "", self.text)
+        cn_to_txt_ratio = len(self.cn_text)/len(txt)
+        return cn_to_txt_ratio > 0.85
+    
+
+    def search(self, regex:Pattern) -> Union[Match, None]:
+        return re.search(regex, self.text, flags=re.IGNORECASE|re.DOTALL)
+
+        
+    def get_section(self, regex:Pattern):
+        self.df_feature_text.str.contains(regex, flags=re.IGNORECASE)
+
+    def divide_into_two_cols(self, d=0.5):
+        l0, l1 = 0 * float(self.page.width), d * float(self.page.width)
+        r0, r1 = d * float(self.page.width), 1 * float(self.page.width)
+        top, bottom = 0, float(self.page.height)
+        left_col = self.page.within_bbox((l0, top, l1, bottom), relative = True)
+        right_col = self.page.within_bbox((r0, top, r1, bottom), relative = True)
+        return self.__class__(left_col), self.__class__(right_col)
+    
+
+    
 
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0424/2020042401194.pdf'
+    # logging.basicConfig(level=logging.DEBUG)
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0424/2020042401194.pdf', 10
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90
+
     pdf_obj = PDF.byte_obj_from_url(url)
     pdf = PDF(pdf_obj)
     print(pdf.pdf_obj)
     print(pdf.src)
+    page = pdf.get_page(p)
+    # page.df_lang = 'cn'
+
+    # print(page.main_text_bbox)
+    page.remove_noise()
+    print(page.df_title_text)
+    # print(page.feature_text_x0s)
+    
+
+    # for p in page.divide_into_two_cols():
+    #     print(p.text)
 
     # pdf = PDF(url)
     # print(pdf.pdf_obj)

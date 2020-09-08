@@ -32,11 +32,3 @@ def elemental_list(li):
     return li_copy
     
 print(elemental_list(li))
-# print(remove_subtotal(li))
-
-
-
-
-        
-
-
