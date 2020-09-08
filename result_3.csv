@@ -327,3 +327,114 @@ EOF marker not found,True,https://www1.hkexnews.hk/listedco/listconews/sehk/2020
 "[{'year': set(), 'currency': {'(HK$'}, 'unit': {')'}, 'unit_in_num': {')'}, 'amount': [[700000, 110000]], 'actual_amount': [[700000, 110000]], 'total': [810000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400735.pdf
 "[{'year': set(), 'currency': {'HK$'}, 'unit': {''}, 'unit_in_num': {''}, 'amount': [[766500, 210000]], 'actual_amount': [[766500, 210000]], 'total': [976500]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400721.pdf
 [],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400717.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[2738, 194]], 'actual_amount': [[2738000, 194000]], 'total': [2932000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400612.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1050, 1973]], 'actual_amount': [[1050000, 1973000]], 'total': [3023000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400598.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[630, 170]], 'actual_amount': [[630000, 170000]], 'total': [800000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400590.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[500]], 'actual_amount': [[500000]], 'total': [500000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400576.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400570.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[880, 1100]], 'actual_amount': [[880000, 1100000]], 'total': [1980000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400564.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0714/2020071400550.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0713/2020071300894.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0713/2020071300746.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0713/2020071300376.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {''}, 'unit_in_num': {''}, 'amount': [[60000, 28000]], 'actual_amount': [[60000, 28000]], 'total': [88000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0713/2020071300157.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0710/2020071000907.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[7390]], 'actual_amount': [[7390000]], 'total': [7390000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0710/2020071000511.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0710/2020071000505.pdf
+"[{'year': {'2020', '2019'}, 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1600], [1976, 1940, 508]], 'actual_amount': [[1600000], [1976000, 1940000, 508000]], 'total': [1600000, 4424000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0710/2020071000416.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1870, 584]], 'actual_amount': [[1870000, 584000]], 'total': [2454000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0710/2020071000402.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0710/2020071000013.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0709/2020070901013.pdf
+"[{'year': set(), 'currency': {'(RMB'}, 'unit': {'’000)'}, 'unit_in_num': {1000}, 'amount': [[1792, 16, 254]], 'actual_amount': [[1792000, 16000, 254000]], 'total': [2062000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0709/2020070900659.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0709/2020070900612.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0708/2020070800866.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0708/2020070800440.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0708/2020070800363.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {''}, 'unit_in_num': {''}, 'amount': [[570000, 1350000]], 'actual_amount': [[570000, 1350000]], 'total': [1920000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0707/2020070701693.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0707/2020070701577.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[2700, 9]], 'actual_amount': [[2700000, 9000]], 'total': [2709000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0707/2020070701188.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0707/2020070701022.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0707/2020070700890.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1500]], 'actual_amount': [[1500000]], 'total': [1500000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0707/2020070700792.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0707/2020070700123.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0707/2020070700013.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {''}, 'unit_in_num': {''}, 'amount': [[2550000, 750000]], 'actual_amount': [[2550000, 750000]], 'total': [3300000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0706/2020070601968.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0706/2020070601946.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0706/2020070601906.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0706/2020070600997.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[3759, 999]], 'actual_amount': [[3759000, 999000]], 'total': [4758000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0706/2020070600947.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0706/2020070600895.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0703/2020070302803.pdf
+"[{'year': {'2020'}, 'currency': set(), 'unit': set(), 'unit_in_num': {1}, 'amount': [[115, 14]], 'actual_amount': [[115, 14]], 'total': [129]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0703/2020070301717.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0703/2020070301658.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0703/2020070301488.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0702/2020070203743.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0702/2020070203407.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0702/2020070202599.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0702/2020070202255.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0702/2020070202029.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0702/2020070201571.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0702/2020070200867.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0702/2020070200801.pdf
+"[{'year': set(), 'currency': {'(HK$'}, 'unit': {'’000)'}, 'unit_in_num': {1000}, 'amount': [[520, 10]], 'actual_amount': [[520000, 10000]], 'total': [530000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0702/2020070200074.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0701/2020070100181.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[2080, 430]], 'actual_amount': [[2080000, 430000]], 'total': [2510000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0701/2020070100101.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0701/2020070100061.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0701/2020070100029.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0701/2020070100011.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0630/2020063002720.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[0, 700]], 'actual_amount': [[0, 700000]], 'total': [700000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002702.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002684.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0630/2020063002676.pdf
+"[{'year': {'2020', '2019'}, 'currency': set(), 'unit': set(), 'unit_in_num': {1}, 'amount': [[750, 84], [700, 278]], 'actual_amount': [[750, 84], [700, 278]], 'total': [834, 978]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002674.pdf
+"[{'year': set(), 'currency': {'RMB'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[926, 170]], 'actual_amount': [[926000, 170000]], 'total': [1096000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002664.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002616.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002460.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1280, 1342]], 'actual_amount': [[1280000, 1342000]], 'total': [2622000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002420.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0630/2020063002326.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002298.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063002260.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[600, 92]], 'actual_amount': [[600000, 92000]], 'total': [692000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063001688.pdf
+"[{'year': set(), 'currency': {'(HK$'}, 'unit': {'’000)'}, 'unit_in_num': {1000}, 'amount': [[400, 0]], 'actual_amount': [[400000, 0]], 'total': [400000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063001678.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0630/2020063001518.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063001256.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000956.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000934.pdf
+"[{'year': {'2018', '2019'}, 'currency': {'HK$'}, 'unit': {''}, 'unit_in_num': {''}, 'amount': [[1380000], [1380000]], 'actual_amount': [[1380000], [1380000]], 'total': [1380000, 1380000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0630/2020063000926.pdf
+"[{'year': {'2020', '2019'}, 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1350, 79], [1200, 81]], 'actual_amount': [[1350000, 79000], [1200000, 81000]], 'total': [1429000, 1281000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0630/2020063000788.pdf
+"[{'year': {'2020'}, 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[]], 'actual_amount': [[]], 'total': [0]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000786.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[500, 0]], 'actual_amount': [[500000, 0]], 'total': [500000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000751.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000709.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000705.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000687.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000683.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000681.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1438, 290]], 'actual_amount': [[1438000, 290000]], 'total': [1728000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000514.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000359.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1570, 308, 1880, 30]], 'actual_amount': [[1570000, 308000, 1880000, 30000]], 'total': [3788000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000335.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000333.pdf
+"[{'year': set(), 'currency': {'RMB'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[2828, 1480]], 'actual_amount': [[2828000, 1480000]], 'total': [4308000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0630/2020063000327.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[480]], 'actual_amount': [[480000]], 'total': [480000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000295.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0630/2020063000185.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000133.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0630/2020063000069.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0630/2020063000053.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0630/2020063000025.pdf
+"[{'year': set(), 'currency': {'(HK$'}, 'unit': {'’000)'}, 'unit_in_num': {1000}, 'amount': [[530, 658]], 'actual_amount': [[530000, 658000]], 'total': [1188000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062902713.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062902347.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062902181.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062902163.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0629/2020062901915.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[700, 0]], 'actual_amount': [[700000, 0]], 'total': [700000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901894.pdf
+"[{'year': {'2020', '2019'}, 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[400], [400]], 'actual_amount': [[400000], [400000]], 'total': [400000, 400000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901867.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901859.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0629/2020062901847.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901841.pdf
+"[{'year': set(), 'currency': {'(HK$'}, 'unit': {'’000)'}, 'unit_in_num': {1000}, 'amount': [[480, 0]], 'actual_amount': [[480000, 0]], 'total': [480000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901819.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {''}, 'unit_in_num': {''}, 'amount': [[140000]], 'actual_amount': [[140000]], 'total': [140000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901807.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901781.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901733.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901645.pdf
+"[{'year': {'2020', '2019'}, 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1150, 0], [1050, 580]], 'actual_amount': [[1150000, 0], [1050000, 580000]], 'total': [1150000, 1630000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901552.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[754, 83]], 'actual_amount': [[754000, 83000]], 'total': [837000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901536.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1023, 586, 440]], 'actual_amount': [[1023000, 586000, 440000]], 'total': [2049000]}]",,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901484.pdf

@@ -144,12 +144,7 @@ class Page:
         x0, top, x1, bottom = zip(en_bbx, cn_bbx)
         return min(x0), min(top), max(x1), max(bottom)
     
-
-    def remove_noise(self) -> None:
-        page = self.page.crop(self.main_text_bbox, relative=True)
-        self.page = page
-        
-
+    
     @property
     def main_fontsize(self) -> pd.Series:
         return self.df_main_text['size'].mode()
@@ -187,13 +182,17 @@ class Page:
         cn_to_txt_ratio = len(self.cn_text)/len(txt)
         return cn_to_txt_ratio > 0.85
     
+    def remove_noise(self) -> None:
+        page = self.page.crop(self.main_text_bbox, relative=True)
+        self.page = page
 
     def search(self, regex:Pattern) -> Union[Match, None]:
         return re.search(regex, self.text, flags=re.IGNORECASE|re.DOTALL)
 
         
     def get_section(self, regex:Pattern):
-        self.df_feature_text.str.contains(regex, flags=re.IGNORECASE)
+        pass
+        # self.df_feature_text.str.contains(regex, flags=re.IGNORECASE)
 
     def divide_into_two_cols(self, d=0.5):
         l0, l1 = 0 * float(self.page.width), d * float(self.page.width)
