@@ -181,7 +181,7 @@ class Page:
     @property
     def df_title_text(self) -> pd.DataFrame:
         self.df_lang = 'en'
-        c_df = self.df_char[self.df_char.size.gt(self.main_fontsize.max())]
+        c_df = self.df_feature_text[self.df_feature_text['size'] > self.main_fontsize.max()]
         tt_df = c_df.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
         self.df_lang = None
         return tt_df

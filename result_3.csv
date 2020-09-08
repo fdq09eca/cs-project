@@ -306,3 +306,14 @@ EOF marker not found,True,https://www1.hkexnews.hk/listedco/listconews/sehk/2020
 [],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0716/2020071600556.pdf
 [],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0716/2020071600552.pdf
 [],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0716/2020071600536.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0716/2020071600518.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[830, 97]], 'actual_amount': [[830000, 97000]], 'total': [927000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0716/2020071600510.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {''}, 'unit_in_num': {''}, 'amount': [[128000]], 'actual_amount': [[128000]], 'total': [128000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0716/2020071600480.pdf
+'NoneType' object is not iterable,True,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0716/2020071600474.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0715/2020071501240.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/gem/2020/0715/2020071500889.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0715/2020071500720.pdf
+"[{'year': {'2020', '2019'}, 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[4752, 584], [4739, 799]], 'actual_amount': [[4752000, 584000], [4739000, 799000]], 'total': [5336000, 5538000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0715/2020071500470.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0715/2020071500451.pdf
+[],,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0715/2020071500419.pdf
+"[{'year': set(), 'currency': {'HK$'}, 'unit': {'’000'}, 'unit_in_num': {1000}, 'amount': [[1107]], 'actual_amount': [[1107000]], 'total': [1107000]}]",,https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0715/2020071500377.pdf
