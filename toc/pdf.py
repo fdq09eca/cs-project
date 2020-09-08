@@ -201,13 +201,13 @@ class Page:
     def left_column(self) -> object:
         l_bbx = self.bbox_left_column
         left_col = self.page.within_bbox(l_bbx, relative = False)
-        return Page(left_col)
+        return self.__class__(left_col)
     
     @property
     def right_column(self) -> object:
         r_bbx = self.bbox_right_column
         right_col = self.page.within_bbox(r_bbx, relative = False)
-        return Page(right_col)
+        return self.__class__(right_col)
     
     @property
     def is_landscape(self) -> bool:
