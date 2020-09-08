@@ -79,8 +79,6 @@ class Page:
     def __init__(self, page):
         self.page = page
         self.df_lang = None
-        self.left_col = None
-        self.right_col = None
     
     @property
     def page_number(self) -> int:
@@ -116,25 +114,18 @@ class Page:
     
     @property
     def df_decarative_text(self) -> pd.DataFrame:
-        return self.df_char[self.df_char.upright == 0]
+        df_char = self.df_char
+        return df_char[df_char['upright'] == 0]
 
-
-    @property
-    def main_fontname(self) -> pd.Series:
-        return self.df_char['fontname'].mode()
-    
-    @property
-    def main_fontsize(self) -> pd.Series:
-        return self.df_char[self.df_char['fontname'].isin(self.main_fontname)]['size'].mode()
-    
     @property
     def df_main_text(self) -> pd.DataFrame:
-        is_main_fontname = self.df_char['fontname'].isin(self.main_fontname)
-        is_main_fontsize = self.df_char['size'].isin(self.main_fontsize)
-        is_upright = self.df_char['upright'] == 1
-        mt_df = self.df_char[is_main_fontname & is_main_fontsize & is_upright]
+        df_char = self.df_char
+        is_main_fontname = df_char['fontname'].isin(self.main_fontname)
+        is_main_fontsize = df_char['size'].isin(self.main_fontsize)
+        is_upright = df_char['upright'] == 1
+        mt_df = df_char[is_main_fontname & is_main_fontsize & is_upright]
         return mt_df
-    
+
     @property
     def df_feature_text(self) -> pd.DataFrame:
         self.df_lang = 'en'
@@ -144,12 +135,30 @@ class Page:
         return ft_df
     
     @property
+    def df_bold_text(self) -> pd.DataFrame:
+        df_feature_text = self.df_feature_text
+        df_feature_text = df_feature_text[df_feature_text['size'].isin(self.main_fontsize)]
+        bt_df = df_feature_text.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        return bt_df
+
+
+    @property
     def df_title_text(self) -> pd.DataFrame:
-        # self.df_lang = 'en'
-        c_df = self.df_feature_text[self.df_feature_text['size'] >= self.main_fontsize.max()]
-        tt_df = c_df.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
-        # self.df_lang = None
+        df_feature_text = self.df_feature_text
+        df_feature_text = df_feature_text[df_feature_text['size'] > self.main_fontsize.max()]
+        tt_df = df_feature_text.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        if tt_df.empty:
+            return self.df_bold_text
         return tt_df
+    
+    @property
+    def main_fontname(self) -> pd.Series: # should i only care about english?
+        return self.df_char['fontname'].mode()
+    
+    @property
+    def main_fontsize(self) -> pd.Series:
+        df_char = self.df_char
+        return df_char[df_char['fontname'].isin(self.main_fontname)]['size'].mode()
     
     @property
     def bbox_main_text(self) -> tuple:
@@ -158,8 +167,9 @@ class Page:
             self.df_lang = lang
             if self.df_main_text.empty:
                 return None
-            x0, top = self.df_main_text[['x0','top']].min()
-            x1, bottom = self.df_main_text[['x1','bottom']].max()
+            df_main_text = self.df_main_text
+            x0, top = df_main_text[['x0','top']].min()
+            x1, bottom = df_main_text[['x1','bottom']].max()
             self.df_lang = None
             print(lang, x0, top, x1, bottom)
             return x0, top, x1, bottom
@@ -171,7 +181,6 @@ class Page:
         x0, top, x1, bottom = zip(en_bbx, cn_bbx)
         return min(x0), min(top), max(x1), max(bottom)
     
-    
     @property
     def col_division(self) -> float:
         min_x0 = self.df_title_text.x0.min()
@@ -180,32 +189,24 @@ class Page:
             print(f'There is another colmun divide at {float(max_x0)}.')
             return max_x0
         return None
-    
-    @property
-    def bbox_left_column(self) -> float:
-        col_division = self.col_division
-        if col_division is None:
-            return None
-        x0, top, x1, bottom = self.bbox_main_text
-        return x0, top, col_division, bottom
-    
-    @property
-    def bbox_right_column(self) -> float:
-        col_division = self.col_division
-        if col_division is None:
-            return None
-        x0, top, x1, bottom = self.bbox_main_text
-        return col_division, top, x1, bottom
 
     @property
     def left_column(self) -> object:
-        l_bbx = self.bbox_left_column
+        col_division = self.col_division
+        if col_division is None:
+            return None
+        x0, top, x1, bottom = self.bbox_main_text
+        l_bbx = x0, top, col_division, bottom
         left_col = self.page.within_bbox(l_bbx, relative = False)
         return self.__class__(left_col)
     
     @property
     def right_column(self) -> object:
-        r_bbx = self.bbox_right_column
+        col_division = self.col_division
+        if col_division is None:
+            return None
+        x0, top, x1, bottom = self.bbox_main_text
+        r_bbx = col_division, top, x1, bottom
         right_col = self.page.within_bbox(r_bbx, relative = False)
         return self.__class__(right_col)
     
@@ -242,15 +243,29 @@ class Page:
         return self.__class__(left_col), self.__class__(right_col)
     
 
+class Char_DataFrame:
     
+    def __init__(self, char_df):
+        self.char_df = char_df
+        self.lang = None
+    
+    @property
+    def char_df(self):
+        return self._char_df
+
+    @char_df.setter
+    def char_df(self, char_df):
+        if not isinstance(char_df, pd.DataFrame):
+            raise TypeError('char_df is not pandas.DataFrame')
+        self._char_df = char_df
 
 
 
 if __name__ == "__main__":
     # logging.basicConfig(level=logging.DEBUG)
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0424/2020042401194.pdf', 10
-    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90
-    url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90 # nocol, parse wrong, hk$000
+    # url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20 # 2cols, correct!!
 
     pdf_obj = PDF.byte_obj_from_url(url)
     pdf = PDF(pdf_obj)
@@ -262,20 +277,9 @@ if __name__ == "__main__":
     # print(page.bbox_main_text)
     page.remove_noise()
     # print(page.text)
-
-    print(page.df_title_text)
+    # print(page.df_main_text[['fontname','size']])
     # print(page.df_feature_text)
-    # print(page.main_fontsize)
-    print(page.left_column.text)
-    print(page.right_column.text)
+    # print(page.df_title_text)
+    print(page.left_column)
+    print(page.right_column)
     # print(page.feature_text_x0s)
-    
-
-
-    # pdf = PDF(url)
-    # print(pdf.pdf_obj)
-    # print(pdf.pdf_obj)
-    # pdf.src = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0802/2020080200033.pdf'
-    # print(pdf.pdf_obj)
-    # print(pdf.pdf_obj)
-    # print(pdf)

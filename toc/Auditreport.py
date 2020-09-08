@@ -531,7 +531,7 @@ if __name__ == "__main__":
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0823/2020082300051.pdf', 73
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900636.pdf', 33
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0729/2020072900390.pdf', 24
-    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90 # 2 cols
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90 # 2 cols
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0408/2020040800383.pdf', 63, #one col
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0407/2020040700576.pdf',56 # porblem, section last too long, cut too much
     # url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20, # problem, noise case, two cols
