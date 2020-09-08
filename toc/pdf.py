@@ -114,18 +114,45 @@ class Page:
         }
         return df_langs.get(self.df_lang, df)
     
+    @property
+    def df_decarative_text(self) -> pd.DataFrame:
+        return self.df_char[self.df_char.upright == 0]
+
 
     @property
     def main_fontname(self) -> pd.Series:
         return self.df_char['fontname'].mode()
     
     @property
+    def main_fontsize(self) -> pd.Series:
+        return self.df_char[self.df_char['fontname'].isin(self.main_fontname)]['size'].mode()
+    
+    @property
     def df_main_text(self) -> pd.DataFrame:
-        mt_df = self.df_char[self.df_char['fontname'].isin(self.main_fontname)]
+        is_main_fontname = self.df_char['fontname'].isin(self.main_fontname)
+        is_main_fontsize = self.df_char['size'].isin(self.main_fontsize)
+        is_upright = self.df_char['upright'] == 1
+        mt_df = self.df_char[is_main_fontname & is_main_fontsize & is_upright]
         return mt_df
     
     @property
-    def main_text_bbox(self) -> tuple:
+    def df_feature_text(self) -> pd.DataFrame:
+        self.df_lang = 'en'
+        c_df = self.df_char[~self.df_char['fontname'].isin(self.main_fontname)]
+        ft_df = c_df.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        self.df_lang = None
+        return ft_df
+    
+    @property
+    def df_title_text(self) -> pd.DataFrame:
+        # self.df_lang = 'en'
+        c_df = self.df_feature_text[self.df_feature_text['size'] >= self.main_fontsize.max()]
+        tt_df = c_df.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        # self.df_lang = None
+        return tt_df
+    
+    @property
+    def bbox_main_text(self) -> tuple:
         
         def bbox(self, lang):
             self.df_lang = lang
@@ -146,31 +173,41 @@ class Page:
     
     
     @property
-    def main_fontsize(self) -> pd.Series:
-        return self.df_main_text['size'].mode()
+    def col_division(self) -> float:
+        min_x0 = self.df_title_text.x0.min()
+        max_x0 = self.df_title_text.x0.max()
+        if min_x0 != max_x0:
+            print(f'There is another colmun divide at {float(max_x0)}.')
+            return max_x0
+        return None
     
     @property
-    def df_feature_text(self) -> pd.DataFrame:
-        self.df_lang = 'en'
-        c_df = self.df_char[~self.df_char['fontname'].isin(self.main_fontname)]
-        ft_df = c_df.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
-        self.df_lang = None
-        return ft_df
+    def bbox_left_column(self) -> float:
+        col_division = self.col_division
+        if col_division is None:
+            return None
+        x0, top, x1, bottom = self.bbox_main_text
+        return x0, top, col_division, bottom
     
     @property
-    def col_x0(self):
-        # self.df_feautre_text.x0
-
-        pass
+    def bbox_right_column(self) -> float:
+        col_division = self.col_division
+        if col_division is None:
+            return None
+        x0, top, x1, bottom = self.bbox_main_text
+        return col_division, top, x1, bottom
 
     @property
-    def df_title_text(self) -> pd.DataFrame:
-        # self.df_lang = 'en'
-        c_df = self.df_feature_text[self.df_feature_text['size'] >= self.main_fontsize.max()]
-        tt_df = c_df.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
-        # self.df_lang = None
-        return tt_df
-
+    def left_column(self) -> object:
+        l_bbx = self.bbox_left_column
+        left_col = self.page.within_bbox(l_bbx, relative = False)
+        return Page(left_col)
+    
+    @property
+    def right_column(self) -> object:
+        r_bbx = self.bbox_right_column
+        right_col = self.page.within_bbox(r_bbx, relative = False)
+        return Page(right_col)
     
     @property
     def is_landscape(self) -> bool:
@@ -183,7 +220,7 @@ class Page:
         return cn_to_txt_ratio > 0.85
     
     def remove_noise(self) -> None:
-        page = self.page.crop(self.main_text_bbox, relative=True)
+        page = self.page.crop(self.bbox_main_text, relative=True)
         self.page = page
 
     def search(self, regex:Pattern) -> Union[Match, None]:
@@ -198,8 +235,10 @@ class Page:
         l0, l1 = 0 * float(self.page.width), d * float(self.page.width)
         r0, r1 = d * float(self.page.width), 1 * float(self.page.width)
         top, bottom = 0, float(self.page.height)
-        left_col = self.page.within_bbox((l0, top, l1, bottom), relative = True)
-        right_col = self.page.within_bbox((r0, top, r1, bottom), relative = True)
+        l_bbx = (l0, top, l1, bottom)
+        r_bbx = (r0, top, r1, bottom)
+        left_col = self.page.within_bbox(l_bbx, relative = True)
+        right_col = self.page.within_bbox(r_bbx, relative = True)
         return self.__class__(left_col), self.__class__(right_col)
     
 
@@ -219,17 +258,19 @@ if __name__ == "__main__":
     print(pdf.src)
     page = pdf.get_page(p)
     # page.df_lang = 'cn'
-
-    # print(page.main_text_bbox)
+    # print(page.df_decarative_text)
+    # print(page.bbox_main_text)
     page.remove_noise()
+    # print(page.text)
+
     print(page.df_title_text)
     # print(page.df_feature_text)
-    print(page.main_fontsize)
+    # print(page.main_fontsize)
+    print(page.left_column.text)
+    print(page.right_column.text)
     # print(page.feature_text_x0s)
     
 
-    # for p in page.divide_into_two_cols():
-    #     print(p.text)
 
     # pdf = PDF(url)
     # print(pdf.pdf_obj)
