@@ -540,7 +540,7 @@ if __name__ == "__main__":
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000783.pdf', 27
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0420/2020042000602.pdf', 43
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0724/2020072400558.pdf', 41,
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0727/2020072700598.pdf', 27
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0727/2020072700598.pdf', 27
     def debug(url, p):
         pdf = PDF(url)
         pdf_obj = pdf.pdf_obj

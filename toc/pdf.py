@@ -73,17 +73,6 @@ class PDF:
     def __repr__(self):
         return f'{self.__class__.__name__}(src="{self.src}")'
 
-class Restorer:
-
-    def __init__(self, varName):
-        self.varName = varName
-
-    def __enter__(self):
-        self.oldValue = globals()[self.varName]
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        globals()[self.varName] = self.oldValue
-
 
 class Page:
     
@@ -176,14 +165,15 @@ class Page:
     @property
     def col_x0(self):
         # self.df_feautre_text.x0
+
         pass
 
     @property
     def df_title_text(self) -> pd.DataFrame:
-        self.df_lang = 'en'
-        c_df = self.df_feature_text[self.df_feature_text['size'] > self.main_fontsize.max()]
+        # self.df_lang = 'en'
+        c_df = self.df_feature_text[self.df_feature_text['size'] >= self.main_fontsize.max()]
         tt_df = c_df.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
-        self.df_lang = None
+        # self.df_lang = None
         return tt_df
 
     
@@ -221,7 +211,8 @@ class Page:
 if __name__ == "__main__":
     # logging.basicConfig(level=logging.DEBUG)
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0424/2020042401194.pdf', 10
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90
+    url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20
 
     pdf_obj = PDF.byte_obj_from_url(url)
     pdf = PDF(pdf_obj)
@@ -233,6 +224,8 @@ if __name__ == "__main__":
     # print(page.main_text_bbox)
     page.remove_noise()
     print(page.df_title_text)
+    # print(page.df_feature_text)
+    print(page.main_fontsize)
     # print(page.feature_text_x0s)
     
 
