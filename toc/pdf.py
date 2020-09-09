@@ -74,34 +74,11 @@ class PDF:
         return f'{self.__class__.__name__}(src="{self.src}")'
 
 
-class Page:
+class CharDataFrame:
     
     def __init__(self, page):
         self.page = page
         self.df_lang = None
-    
-    @property
-    def page_number(self) -> int:
-        return self.page.page_number - 1
-    
-    @property
-    def text(self) -> str:
-        txt = self.page.extract_text()
-        txt = txt.replace('ﬁ', 'fi') # must clean before chinese
-        txt = re.sub(r'\ufeff', ' ', txt)  # clear BOM
-        return txt
-    
-    @property
-    def en_text(self) -> str:
-        return re.sub(r"([^\x00-\x7F])+", "", self.text)
-    
-    @property
-    def cn_text(self) -> str:
-        return re.sub(r"([\x00-\x7F])+", "", self.text)
-    
-    # @property 
-    # def feature_text(self):
-    #     pass
     
     @property
     def df_char(self) -> pd.DataFrame:
@@ -190,6 +167,30 @@ class Page:
             return max_x0
         return None
 
+class Page(CharDataFrame):
+    
+    def __init__(self, page):
+        super().__init__(page)
+    
+    @property
+    def page_number(self) -> int:
+        return self.page.page_number - 1
+    
+    @property
+    def text(self) -> str:
+        txt = self.page.extract_text()
+        txt = txt.replace('ﬁ', 'fi') # must clean before chinese
+        txt = re.sub(r'\ufeff', ' ', txt)  # clear BOM
+        return txt
+    
+    @property
+    def en_text(self) -> str:
+        return re.sub(r"([^\x00-\x7F])+", "", self.text)
+    
+    @property
+    def cn_text(self) -> str:
+        return re.sub(r"([\x00-\x7F])+", "", self.text)
+    
     @property
     def left_column(self) -> object:
         col_division = self.col_division
@@ -241,7 +242,6 @@ class Page:
         left_col = self.page.within_bbox(l_bbx, relative = True)
         right_col = self.page.within_bbox(r_bbx, relative = True)
         return self.__class__(left_col), self.__class__(right_col)
-    
 
 
 if __name__ == "__main__":
