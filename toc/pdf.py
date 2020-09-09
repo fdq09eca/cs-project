@@ -99,9 +99,6 @@ class Page:
     def cn_text(self) -> str:
         return re.sub(r"([\x00-\x7F])+", "", self.text)
     
-    # @property 
-    # def feature_text(self):
-    #     pass
     
     @property
     def df_char(self) -> pd.DataFrame:
