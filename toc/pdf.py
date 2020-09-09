@@ -120,13 +120,13 @@ class CharDataFrame:
 
 
     @property
-    def df_title_text(self) -> pd.DataFrame:
+    def df_section_text(self) -> pd.DataFrame:
         df_feature_text = self.df_feature_text
-        df_tt = df_feature_text[df_feature_text['size'] > self.main_fontsize.max()]
-        df_title_text = df_tt.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
-        if df_title_text.empty:
+        df_st = df_feature_text[df_feature_text['size'] > self.main_fontsize.max()]
+        df_section_text = df_st.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        if df_section_text.empty:
             return self.df_bold_text
-        return df_title_text
+        return df_section_text
     
     @property
     def main_fontname(self) -> pd.Series: # should i only care about english?
@@ -160,8 +160,8 @@ class CharDataFrame:
     
     @property
     def col_division(self) -> float:
-        min_x0 = self.df_title_text.x0.min()
-        max_x0 = self.df_title_text.x0.max()
+        min_x0 = self.df_section_text.x0.min()
+        max_x0 = self.df_section_text.x0.max()
         if min_x0 != max_x0:
             print(f'There is another colmun divide at {float(max_x0)}.')
             return max_x0
@@ -171,11 +171,16 @@ class Page(CharDataFrame):
     
     def __init__(self, page):
         super().__init__(page)
-    
+        self.remove_noise()
+
     @property
     def page_number(self) -> int:
         return self.page.page_number - 1
     
+    @property
+    def sections(self):
+        return self.df_section_text.text.to_list()
+
     @property
     def text(self) -> str:
         txt = self.page.extract_text()
@@ -247,8 +252,8 @@ class Page(CharDataFrame):
 if __name__ == "__main__":
     # logging.basicConfig(level=logging.DEBUG)
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0424/2020042401194.pdf', 10
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90 # nocol, parse wrong, hk$000
-    # url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20 # 2cols, correct!!
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90 # nocol, parse wrong, hk$000
+    url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20 # 2cols, correct!!
 
     pdf_obj = PDF.byte_obj_from_url(url)
     pdf = PDF(pdf_obj)
@@ -258,11 +263,11 @@ if __name__ == "__main__":
     # page.df_lang = 'cn'
     # print(page.df_decarative_text)
     # print(page.bbox_main_text)
-    page.remove_noise()
+    # page.remove_noise()
     # print(page.text)
     # print(page.df_main_text[['fontname','size']])
     # print(page.df_feature_text)
-    # print(page.df_title_text)
-    print(page.left_column)
-    print(page.right_column)
-    # print(page.feature_text_x0s)
+    # print(page.df_section_text)
+    # print(page.left_column)
+    # print(page.right_column)
+    print(page.sections)
