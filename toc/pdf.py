@@ -129,27 +129,27 @@ class Page:
     @property
     def df_feature_text(self) -> pd.DataFrame:
         self.df_lang = 'en'
-        c_df = self.df_char[~self.df_char['fontname'].isin(self.main_fontname)]
-        ft_df = c_df.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        df_ft = self.df_char[~self.df_char['fontname'].isin(self.main_fontname)]
+        df_feature_text = df_ft.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
         self.df_lang = None
-        return ft_df
+        return df_feature_text
     
     @property
     def df_bold_text(self) -> pd.DataFrame:
         df_feature_text = self.df_feature_text
-        df_feature_text = df_feature_text[df_feature_text['size'].isin(self.main_fontsize)]
-        bt_df = df_feature_text.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
-        return bt_df
+        df_bt = df_feature_text[df_feature_text['size'].isin(self.main_fontsize)]
+        df_bold_text = df_bt.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        return df_bold_text
 
 
     @property
     def df_title_text(self) -> pd.DataFrame:
         df_feature_text = self.df_feature_text
-        df_feature_text = df_feature_text[df_feature_text['size'] > self.main_fontsize.max()]
-        tt_df = df_feature_text.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
-        if tt_df.empty:
+        df_tt = df_feature_text[df_feature_text['size'] > self.main_fontsize.max()]
+        df_title_text = df_tt.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        if df_title_text.empty:
             return self.df_bold_text
-        return tt_df
+        return df_title_text
     
     @property
     def main_fontname(self) -> pd.Series: # should i only care about english?
@@ -242,23 +242,6 @@ class Page:
         right_col = self.page.within_bbox(r_bbx, relative = True)
         return self.__class__(left_col), self.__class__(right_col)
     
-
-class Char_DataFrame:
-    
-    def __init__(self, char_df):
-        self.char_df = char_df
-        self.lang = None
-    
-    @property
-    def char_df(self):
-        return self._char_df
-
-    @char_df.setter
-    def char_df(self, char_df):
-        if not isinstance(char_df, pd.DataFrame):
-            raise TypeError('char_df is not pandas.DataFrame')
-        self._char_df = char_df
-
 
 
 if __name__ == "__main__":
