@@ -262,4 +262,4 @@ if __name__ == "__main__":
     # print(page.df_title_text)
     print(page.left_column)
     print(page.right_column)
-    # print(page.feature_text_x0s)
+    
