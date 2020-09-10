@@ -144,24 +144,18 @@ class Page:
     
     @property
     def df_section_text(self) -> pd.DataFrame:
-        df_title_text = self.df_title_text
-        df_next_title_text = self.df_title_text.shift(-1).dropna()
-        # df_next_title_text.iloc[-1] = df_title_text.iloc[-1]
-        df_section_text = pd.DataFrame()
-        
-        for next_title, title in zip(df_next_title_text.itertuples(index=False),  df_title_text.itertuples(index=False)):
-            diff_btw_titles = abs(title.bottom - next_title.top)
-            
-            if diff_btw_titles < title.size:
-                title = pd.DataFrame([title]).to_dict()
-                title['bottom'][0] = next_title.bottom
-                title['text'][0] += next_title.text
-                title = pd.DataFrame.from_dict(title)
-            
-            df_section_text = df_section_text.append([title])
-        
-        df_section_text = df_section_text.drop_duplicates(subset=['bottom']).reset_index()
-
+        df = self.df_title_text
+        title_interval = df['bottom'].shift() - df['top']
+        indicator = (title_interval.abs() > df['size']).cumsum()
+        df_section_text = df.groupby(indicator).agg({
+            'top':'first',
+            'bottom':'last',
+            'fontname':'first',
+            'size':'first',
+            'x0':'first',
+            'x1':'first',
+            'text':''.join
+            })
         return df_section_text
 
     @property
@@ -256,9 +250,9 @@ class Page:
 if __name__ == "__main__":
     # logging.basicConfig(level=logging.DEBUG)
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0424/2020042401194.pdf', 10
-    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90 # nocol, parse wrong, hk$000
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90 # nocol, parse wrong, hk$000
     # url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20 # 2cols, correct!!
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0823/2020082300051.pdf', 73
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0823/2020082300051.pdf', 73
     
     pdf_obj = PDF.byte_obj_from_url(url)
     pdf = PDF(pdf_obj)
@@ -271,8 +265,8 @@ if __name__ == "__main__":
     # page.remove_noise()
     # print(page.text)
     # print(page.df_main_text[['fontname','size']])
-    print(page.df_feature_text)
-    print(page.df_title_text)
+    # print(page.df_feature_text)
+    # print(page.df_title_text)
     print(page.df_section_text)
     # page.remove_noise()
     # page.remove_noise()
