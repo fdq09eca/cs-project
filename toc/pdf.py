@@ -79,6 +79,7 @@ class Page:
     def __init__(self, page):
         self.page = page
         self.df_lang = None
+        self.remove_noise()
     
     @property
     def page_number(self) -> int:
@@ -90,15 +91,7 @@ class Page:
         txt = txt.replace('ﬁ', 'fi') # must clean before chinese
         txt = re.sub(r'\ufeff', ' ', txt)  # clear BOM
         return txt
-    
-    @property
-    def en_text(self) -> str:
-        return re.sub(r"([^\x00-\x7F])+", "", self.text)
-    
-    @property
-    def cn_text(self) -> str:
-        return re.sub(r"([\x00-\x7F])+", "", self.text)
-    
+       
     
     @property
     def df_char(self) -> pd.DataFrame:
@@ -128,6 +121,7 @@ class Page:
         self.df_lang = 'en'
         df_ft = self.df_char[~self.df_char['fontname'].isin(self.main_fontname)]
         df_feature_text = df_ft.groupby(['top', 'bottom', 'fontname' , 'size']).agg({'x0':'min','x1':'max', 'text': lambda x: ''.join(x)}).reset_index()
+        df_feature_text = df_feature_text[df_feature_text.text.str.contains(r'\w+')]
         self.df_lang = None
         return df_feature_text
     
@@ -149,6 +143,28 @@ class Page:
         return df_title_text
     
     @property
+    def df_section_text(self) -> pd.DataFrame:
+        df_title_text = self.df_title_text
+        df_next_title_text = self.df_title_text.shift(-1).dropna()
+        # df_next_title_text.iloc[-1] = df_title_text.iloc[-1]
+        df_section_text = pd.DataFrame()
+        
+        for next_title, title in zip(df_next_title_text.itertuples(index=False),  df_title_text.itertuples(index=False)):
+            diff_btw_titles = abs(title.bottom - next_title.top)
+            
+            if diff_btw_titles < title.size:
+                title = pd.DataFrame([title]).to_dict()
+                title['bottom'][0] = next_title.bottom
+                title['text'][0] += next_title.text
+                title = pd.DataFrame.from_dict(title)
+            
+            df_section_text = df_section_text.append([title])
+        
+        df_section_text = df_section_text.drop_duplicates(subset=['bottom']).reset_index()
+
+        return df_section_text
+
+    @property
     def main_fontname(self) -> pd.Series: # should i only care about english?
         return self.df_char['fontname'].mode()
     
@@ -167,15 +183,20 @@ class Page:
             df_main_text = self.df_main_text
             x0, top = df_main_text[['x0','top']].min()
             x1, bottom = df_main_text[['x1','bottom']].max()
+            # print(lang, x0, top, x1, bottom)
+            top = [top]
+            top.append(self.df_feature_text.top.min())
+
             self.df_lang = None
-            print(lang, x0, top, x1, bottom)
-            return x0, top, x1, bottom
+            return x0, min(top), x1, bottom
         
         en_bbx, cn_bbx = bbox(self, 'en'), bbox(self, 'cn')
         
         if cn_bbx is None:
             return en_bbx 
         x0, top, x1, bottom = zip(en_bbx, cn_bbx)
+        
+    
         return min(x0), min(top), max(x1), max(bottom)
     
     @property
@@ -207,18 +228,9 @@ class Page:
         right_col = self.page.within_bbox(r_bbx, relative = False)
         return self.__class__(right_col)
     
-    @property
-    def is_landscape(self) -> bool:
-        return self.page.width > self.page.height
-    
-    @property
-    def is_full_cn(self) -> bool:
-        txt = re.sub("\n+|\s+", "", self.text)
-        cn_to_txt_ratio = len(self.cn_text)/len(txt)
-        return cn_to_txt_ratio > 0.85
     
     def remove_noise(self) -> None:
-        page = self.page.crop(self.bbox_main_text, relative=True)
+        page = self.page.crop(self.bbox_main_text, relative=False)
         self.page = page
 
     def search(self, regex:Pattern) -> Union[Match, None]:
@@ -244,9 +256,10 @@ class Page:
 if __name__ == "__main__":
     # logging.basicConfig(level=logging.DEBUG)
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0424/2020042401194.pdf', 10
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90 # nocol, parse wrong, hk$000
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90 # nocol, parse wrong, hk$000
     # url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20 # 2cols, correct!!
-
+    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0823/2020082300051.pdf', 73
+    
     pdf_obj = PDF.byte_obj_from_url(url)
     pdf = PDF(pdf_obj)
     print(pdf.pdf_obj)
@@ -255,11 +268,17 @@ if __name__ == "__main__":
     # page.df_lang = 'cn'
     # print(page.df_decarative_text)
     # print(page.bbox_main_text)
-    page.remove_noise()
+    # page.remove_noise()
     # print(page.text)
     # print(page.df_main_text[['fontname','size']])
-    # print(page.df_feature_text)
-    # print(page.df_title_text)
-    print(page.left_column)
-    print(page.right_column)
+    print(page.df_feature_text)
+    print(page.df_title_text)
+    print(page.df_section_text)
+    # page.remove_noise()
+    # page.remove_noise()
+    # page.remove_noise()
+    # page.remove_noise()
+    # page.left_column.remove_noise()
+    # print(page.left_column.text)
+    # print(page.right_column.text)
     
