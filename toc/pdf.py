@@ -5,16 +5,30 @@ import pandas as pd
 import requests
 import re
 import logging
+import os
+import itertools
+import time
 import pdfplumber
+import PyPDF2
+
+
+def utf8_str(string: str) -> str:
+    if not isinstance(string, str):
+        string = string.decode('utf-8', errors="ignore")
+    return re.sub(r'\r|\n|\ufeff', '', string)
+
+
+def flatten(li: list) -> list:
+    '''
+    helper: flatten a irregular list recursively;
+    for flattening multiple levels of outlines.
+    '''
+    return sum(map(flatten, li), []) if isinstance(li, list) else [li]
 
 
 class PDF:
     def __init__(self, src):
         self.src = src
-
-    @property
-    def pdf_obj(self):
-        return self._pdf_obj
 
     @property
     def src(self):
@@ -23,7 +37,28 @@ class PDF:
     @src.setter
     def src(self, src):
         self._pdf_obj = self.byte_obj_from_url(src) or src
+        self._pb_pdf = pdf = pdfplumber.open(self._pdf_obj)
         self._src = src
+
+    @property
+    def pdf_obj(self) -> Union[str, object]:
+        return self._pdf_obj
+
+    @property
+    def pb_pdf(self) -> object:
+        return self._pb_pdf
+
+    @property
+    def pypdf_reader(self):
+        pdf_obj = self.pdf_obj
+        if type(pdf_obj) is str and os.path.isfile(pdf_obj):
+            pdf_obj = open(src, 'rb')
+        return PyPDF2.PdfFileReader(pdf_obj, strict=False)
+
+    @property
+    def max_page_num(self):
+        pdf = self.pb_pdf
+        return len(pdf.pages)
 
     @staticmethod
     def is_url(src: str) -> Match[str]:
@@ -53,20 +88,50 @@ class PDF:
         return byte_obj
 
     def get_page(self, p: int):
-        pdf = pdfplumber.open(self.pdf_obj)
+        pdf = self.pb_pdf
         return Page.create(pdf.pages[p])
 
-    @staticmethod
-    def crop_page(page: object, bbox: tuple):
-        if not isinstance(page, pdfplumber.page.Page):
-            raise TypeError('page is not pdfplumber.page.Page')
-        return page.crop(bbox, relative=True)
+    @property
+    def outlines(self):
+        pypdf_reader = self.pypdf_reader
+        outlines = flatten(pypdf_reader.getOutlines())
+        titles = [outline.title for outline in outlines]
 
-    @staticmethod
-    def get_text(page):
-        if not isinstance(page, pdfplumber.page.Page):
-            raise TypeError('page is not pdfplumber.page.Page')
-        return page.extract_text()
+        def get_page_num(outline):
+            try:
+                return pypdf_reader.getDestinationPageNumber(outline)
+            except AttributeError:
+                return None
+
+        starting_pages = [get_page_num(outline) for outline in outlines]
+        ending_pages = [page_num - 1 for page_num in starting_pages[1:]]
+        page_ranges = itertools.zip_longest(starting_pages, ending_pages, fillvalue=None)
+        return [Outline(title, page_range, self.pb_pdf) for title, page_range in zip(titles, page_ranges)]
+
+    @property
+    def toc(self):
+        outlines = self.outlines
+        outline = [[outline.title, outline.from_page, outline.to_page]
+                   for outline in outlines]
+        toc = pd.DataFrame(outline, columns=['title', 'from_page', 'to_page'])
+        column_types = {'title': str, 'from_page': int, 'to_page': 'Int64'}
+        return toc.astype(column_types)
+
+    def get_outline(self, regex: Pattern) -> list:
+        outlines = self.outlines
+        return [outline for outline in outlines if re.search(regex, outline.title, flags=re.IGNORECASE)]
+
+    def feature_text_global_search(self, regex: Pattern) -> list:
+        pdf = self.pb_pdf
+        matched_pages = []
+        for p in pdf.pages:
+            page = Page.create(p)
+            if not page or page.df_feature_text.empty:
+                continue
+            if any(page.df_feature_text.text.str.contains(regex, flags=re.IGNORECASE)):
+                matched_pages.append(page)
+            print(page.page_number)
+        return matched_pages
 
     def __repr__(self):
         return f'{self.__class__.__name__}(src="{self.src}")'
@@ -124,12 +189,12 @@ class Page:
     @property
     def df_feature_text(self) -> pd.DataFrame:
         self.df_lang = 'en'
-        df_ft = self.df_char[~self.df_char['fontname'].isin(
-            self.main_fontname)]
+        df_ft = self.df_char[~self.df_char['fontname'].isin(self.main_fontname)]
         df_feature_text = df_ft.groupby(['top', 'bottom', 'fontname', 'size']).agg(
             {'x0': 'min', 'x1': 'max', 'text': lambda x: ''.join(x)}).reset_index()
-        df_feature_text = df_feature_text[df_feature_text.text.str.contains(
-            r'\w+')]
+        if df_feature_text.empty:
+            return df_feature_text
+        df_feature_text = df_feature_text[df_feature_text.text.str.contains(r'\w+')]
         self.df_lang = None
         return df_feature_text
 
@@ -145,8 +210,7 @@ class Page:
     @property
     def df_title_text(self) -> pd.DataFrame:
         df_feature_text = self.df_feature_text
-        df_tt = df_feature_text[df_feature_text['size']
-                                > self.main_fontsize.max()]
+        df_tt = df_feature_text[df_feature_text['size'] > self.main_fontsize.max()]
         df_title_text = df_tt.groupby(['top', 'bottom', 'fontname', 'size']).agg(
             {'x0': 'min', 'x1': 'max', 'text': lambda x: ''.join(x)}).reset_index()
         if df_title_text.empty:
@@ -191,11 +255,16 @@ class Page:
             x0, top = df_main_text[['x0', 'top']].min()
             x1, bottom = df_main_text[['x1', 'bottom']].max()
             # print(lang, x0, top, x1, bottom)
+
             top = [top]
             top.append(self.df_feature_text.top.min())
+            top = [t if t >= 0 else 0 for t in top]
+
+            x1 = [x1]
+            x1.append(self.df_feature_text.x1.max())
 
             self.df_lang = None
-            return x0, min(top), x1, bottom
+            return x0, min(top), max(x1), bottom
 
         en_bbx, cn_bbx = bbox(self, 'en'), bbox(self, 'cn')
 
@@ -236,9 +305,6 @@ class Page:
 
     @property
     def sections(self):
-        '''
-        return a list of section instance
-        '''
         df_section_text = self.df_section_text
 
         def section_bbx(self, section):
@@ -263,15 +329,12 @@ class Page:
         return re.search(regex, self.text, flags=re.IGNORECASE | re.DOTALL)
 
     def get_section(self, regex: Pattern) -> list:
-        '''
-        return a list of Section that matches with the regex
-        '''
         sections = self.sections
         return [section for section in sections if re.match(regex, section.title, flags=re.IGNORECASE)]
 
     def create_section(self, sec_bbx, title=None, relative=False):
-        col = self.page.within_bbox(sec_bbx, relative=relative)
-        return Section.create(col, title=title)
+        sec = self.page.within_bbox(sec_bbx, relative=relative)
+        return Section.create(sec, title=title)
 
     def divide_into_two_cols(self, d=0.5, relative=True):
         l0, l1 = 0 * float(self.page.width), d * float(self.page.width)
@@ -283,8 +346,11 @@ class Page:
         left_col = self.create_section(
             self, l_bbx, title='Left Column', relative=relative)
         right_col = self.create_section(
-            self, r_bbx, title='Left Column', relative=relative)
+            self, r_bbx, title='Right Column', relative=relative)
         return left_col, right_col
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} {self.page_number}>'
 
 
 class Section(Page):
@@ -295,20 +361,113 @@ class Section(Page):
     def __repr__(self):
         return f'<{self.__class__.__name__}: {self.title}>'
 
+# class Outlines(Outline):
+#     def __init__(self, pypdf_reader):
+#         self.pypdf_reader = pypdf_reader
+
+#     @property
+#     def outlines(self):
+#         return flatten(self.pypdf_reader.getOutlines())
+
+
+class Outline:
+    def __init__(self, title, page_range, pb_pdf):
+        self.title = title
+        self.page_range = page_range
+        self.pb_pdf = pb_pdf
+
+    @property
+    def pages(self):
+        page_range = self.page_range
+        pb_pdf = self.pb_pdf
+        return [Page.create(pb_pdf.pages[p]) for p in page_range]
+
+    @property
+    def page_range(self):
+        from_page, to_page = self.from_page, self.to_page
+        if from_page and to_page:
+            return range(from_page, to_page + 1)
+        return []
+
+    @page_range.setter
+    def page_range(self, page_range):
+        if type(page_range) is not tuple:
+            raise TypeError(f'page_range type {type(page_range)} is not tuple')
+        self._page_range = page_range
+
+    @property
+    def title(self):
+        return self._title
+
+    @title.setter
+    def title(self, title):
+        self._title = utf8_str(title).capitalize()
+
+    @property
+    def from_page(self):
+        return self._page_range[0]
+
+    @property
+    def to_page(self):
+        return self._page_range[-1]
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__}: {self.title} {self.from_page} - {self.to_page}>'
+
+
+class IndependentAuditorReport(PDF):
+
+    outline_regex = r'^(?!.*internal)(?=.*report|responsibilities).*auditor.*$'
+    auditor_regex = r'\n(?!.*?(Institute|Responsibilities).*?).*?(?P<auditor>.{4,}\S|[A-Z]{4})(?:LLP\s*)?\s*((PRC\s*?|Chinese\s*?)?Certified\s*Public|Chartered)\s*Accountants*'
+
+    def __init__(self, pdf_obj):
+        super().__init__(pdf_obj)
+        self._pages = self.get_outline(IndependentAuditorReport.outline_regex)
+
+    @property
+    def pages(self):
+        return self._pages
+
+    # @property
+    # def auditor(self):
+    #     pages = self.pages
+    #     if pages:
+    #         last_page = pages[-1]
+    #         return last_page.search(IndependentAuditorReport.auditor_regex)
+    #     self._pages = self.feature_text_g_search(IndependentAuditorReport.outline_regex)
+    #     pages = self.pages
+    #     return [page.search().group('auditor') for page in pages]
+
+    @property
+    def kams(self):
+        pass
+
 
 if __name__ == "__main__":
     # logging.basicConfig(level=logging.DEBUG)
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0424/2020042401194.pdf', 10
     # nocol, parse wrong, hk$000
+    # slow..
     url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90
     # url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20 # 2cols, correct!!
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0823/2020082300051.pdf', 73
-
+    # url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf'
+    # url, p  = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042801961.pdf', 62
+    import datetime
     pdf_obj = PDF.byte_obj_from_url(url)
     pdf = PDF(pdf_obj)
-    print(pdf.pdf_obj)
-    print(pdf.src)
-    page = pdf.get_page(p)
+    # page = pdf.get_page(7)
+    # print(page.df_feature_text.text.str.contains(r'audit'))
+    print(pdf.feature_text_global_search(r'audit'))
+    print(pdf.toc)
+    # print(pdf.outlines[5].pages)
+    # print(pdf.get_outline(r'audit')[0].pages[-1].text)
+    # print(pdf.pages[22])
+
+    # print(pdf.toc)
+    # print(pdf.pdf_obj)
+    # print(pdf.src)
+    # page = pdf.get_page(p)
     # page.df_lang = 'cn'
     # print(page.df_decarative_text)
     # print(page.bbox_main_text)
@@ -318,7 +477,7 @@ if __name__ == "__main__":
     # print(page.df_feature_text)
     # print(page.df_title_text)
     # print(page.df_section_text)
-    print(page.sections)
+    # print(page.sections)
     # page.remove_noise()
     # page.remove_noise()
     # page.remove_noise()
