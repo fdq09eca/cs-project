@@ -1,18 +1,28 @@
 from io import BytesIO
 from typing import Union, Pattern, Match
 from contextlib import contextmanager
+from itertools import zip_longest, groupby
+from operator import itemgetter
 import pandas as pd
 import requests
 import re
 import logging
 import os
-import itertools
 import time
 import pdfplumber
 import PyPDF2
 
+def consecutive_int_list(li):
+    '''
+    helper: return a list of list of consecutive integers
+    '''
+    
+    return [list(map(itemgetter(1), g)) for k, g in groupby(enumerate(li), lambda xi: xi[0]-xi[1])]
 
 def utf8_str(string: str) -> str:
+    '''
+    helper: ensure string has utf-8 encoding
+    '''
     if not isinstance(string, str):
         string = string.decode('utf-8', errors="ignore")
     return re.sub(r'\r|\n|\ufeff', '', string)
@@ -29,6 +39,20 @@ def flatten(li: list) -> list:
 class PDF:
     def __init__(self, src):
         self.src = src
+    
+    @classmethod
+    def create(cls, src):
+        src_types = {
+           type(src) is str and cls.is_url(src) : lambda: cls.byte_obj_from_url(src),
+           type(src) is str and os.path.isfile(src) : lambda: open(src, 'rb'),
+           type(src) is not str and cls.is_binary(src): lambda: src
+        }
+        pdf_obj = src_types.get(True, lambda: None)()
+        print(pdf_obj)
+        if pdf_obj and pdf_obj.read().startswith(b'%PDF'):
+            return cls(src)
+        return None
+
 
     @property
     def src(self):
@@ -37,7 +61,7 @@ class PDF:
     @src.setter
     def src(self, src):
         self._pdf_obj = self.byte_obj_from_url(src) or src
-        self._pb_pdf = pdf = pdfplumber.open(self._pdf_obj)
+        self._pb_pdf = pdfplumber.open(self._pdf_obj)
         self._src = src
 
     @property
@@ -59,9 +83,13 @@ class PDF:
     def max_page_num(self):
         pdf = self.pb_pdf
         return len(pdf.pages)
+    
+    @staticmethod
+    def is_binary(obj) -> bool:
+        return hasattr(obj ,'read')
 
     @staticmethod
-    def is_url(src: str) -> Match[str]:
+    def is_url(src: str) -> bool:
         if not isinstance(src, str):
             logging.warning(f'Input type {type(src)} is not str.')
             return None
@@ -73,7 +101,7 @@ class PDF:
             r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
             r'(?::\d+)?'  # optional port
             r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-        return re.match(url_regex, src)
+        return True if re.match(url_regex, src) else False
 
     @staticmethod
     def byte_obj_from_url(url: str) -> object:
@@ -95,17 +123,18 @@ class PDF:
     def outlines(self):
         pypdf_reader = self.pypdf_reader
         outlines = flatten(pypdf_reader.getOutlines())
-        titles = [outline.title for outline in outlines]
-
+        
         def get_page_num(outline):
             try:
                 return pypdf_reader.getDestinationPageNumber(outline)
             except AttributeError:
                 return None
-
+        
+        outlines = [outline for outline in outlines if get_page_num(outline)]
+        titles = [outline.title for outline in outlines]
         starting_pages = [get_page_num(outline) for outline in outlines]
         ending_pages = [page_num - 1 for page_num in starting_pages[1:]]
-        page_ranges = itertools.zip_longest(starting_pages, ending_pages, fillvalue=None)
+        page_ranges = zip_longest(starting_pages, ending_pages, fillvalue=max(starting_pages, default=None))
         return [Outline(title, page_range, self.pb_pdf) for title, page_range in zip(titles, page_ranges)]
 
     @property
@@ -118,21 +147,35 @@ class PDF:
         return toc.astype(column_types)
 
     def get_outline(self, regex: Pattern) -> list:
+        '''
+        return a list of outline
+        '''
         outlines = self.outlines
-        return [outline for outline in outlines if re.search(regex, outline.title, flags=re.IGNORECASE)]
+        if outlines:
+            return [outline for outline in outlines if re.search(regex, outline.title, flags=re.IGNORECASE)]
+        return self.search_outline(regex)
 
-    def feature_text_global_search(self, regex: Pattern) -> list:
+    def search_outline(self, regex: Pattern, scope=None) -> list:
         pdf = self.pb_pdf
-        matched_pages = []
-        for p in pdf.pages:
+        pages = scope or pdf.pages
+        matched_page_nums = []
+        for p in pages:
             page = Page.create(p)
             if not page or page.df_feature_text.empty:
                 continue
             if any(page.df_feature_text.text.str.contains(regex, flags=re.IGNORECASE)):
-                matched_pages.append(page)
-            print(page.page_number)
-        return matched_pages
+                matched_page_nums.append(page.page_number)
+            print(f'searching page {page.page_number}...')
+        # matched_page_nums = consecutive_int_list(matched_page_nums)
+        # page_ranges = [(min(matched_page_num), max(matched_page_num)) for matched_page_num in matched_page_nums]
+        # scope = 'Local' if scope else 'Global'
+        # return [Outline(f'{scope} search kwywords: {regex}', page_range, self.pb_pdf) for page_range in page_ranges]
+        matched_page_num = max(consecutive_int_list(matched_page_nums), key=len)
+        page_range = min(matched_page_num), max(matched_page_num)
+        scope = 'Local' if scope else 'Global'
+        return [Outline(f'{scope} search kwywords: {regex}', page_range, self.pb_pdf)]
 
+    
     def __repr__(self):
         return f'{self.__class__.__name__}(src="{self.src}")'
 
@@ -369,7 +412,6 @@ class Section(Page):
 #     def outlines(self):
 #         return flatten(self.pypdf_reader.getOutlines())
 
-
 class Outline:
     def __init__(self, title, page_range, pb_pdf):
         self.title = title
@@ -444,22 +486,50 @@ class IndependentAuditorReport(PDF):
 
 
 if __name__ == "__main__":
+    from os import sys, path
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+    from api.get_data import HKEX_API
+    from helper import over_a_year, yesterday, today, n_yearsago
+    query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
+    for data in query.get_data():
+        url = data.file_link
+        print(url)
+        pdf = PDF.create(src=url)
+        if pdf is None:
+            continue
+        toc = pdf.toc
+        if not toc.empty:
+            print(toc)
+        else:
+            with open('empty_toc.txt', 'a') as f:
+                f.write(f'{url}\n')
+            
+    
     # logging.basicConfig(level=logging.DEBUG)
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0424/2020042401194.pdf', 10
     # nocol, parse wrong, hk$000
     # slow..
-    url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90
+    # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700849.pdf', 90
     # url , p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2019/1028/ltn20191028063.pdf', 20 # 2cols, correct!!
     # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0823/2020082300051.pdf', 73
     # url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073101878.pdf'
     # url, p  = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042801961.pdf', 62
-    import datetime
-    pdf_obj = PDF.byte_obj_from_url(url)
-    pdf = PDF(pdf_obj)
+    # url = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0828/2020082802897.pdf'  # empty.toc
+    # url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000624.pdf'
+    # local_path = '/Users/macone/Documents/cs_project/toc/2020073000624.pdf'
+    # pdf = PDF.create(local_path)
+    # pdf_obj = PDF.byte_obj_from_url(url)
+    # pdf = PDF.create(pdf_obj)
+    # print(pdf.max_page_num)
+    # pdf_obj = PDF.byte_obj_from_url(url)
+    # pdf = PDF(pdf_obj)
+    # pdf = PDF(url)
+    # print(pdf.toc)
     # page = pdf.get_page(7)
     # print(page.df_feature_text.text.str.contains(r'audit'))
-    print(pdf.feature_text_global_search(r'audit'))
-    print(pdf.toc)
+    # print(pdf.search_outline(r'audit'))
+    # print(pdf.get_outline(r'audit'))
+    # print(pdf.toc)
     # print(pdf.outlines[5].pages)
     # print(pdf.get_outline(r'audit')[0].pages[-1].text)
     # print(pdf.pages[22])
