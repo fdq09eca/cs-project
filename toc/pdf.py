@@ -48,7 +48,6 @@ class PDF:
            type(src) is not str and cls.is_binary(src): lambda: src
         }
         pdf_obj = src_types.get(True, lambda: None)()
-        print(pdf_obj)
         if pdf_obj and pdf_obj.read().startswith(b'%PDF'):
             return cls(src)
         return None
@@ -166,14 +165,13 @@ class PDF:
             if any(page.df_feature_text.text.str.contains(regex, flags=re.IGNORECASE)):
                 matched_page_nums.append(page.page_number)
             print(f'searching page {page.page_number}...')
-        # matched_page_nums = consecutive_int_list(matched_page_nums)
-        # page_ranges = [(min(matched_page_num), max(matched_page_num)) for matched_page_num in matched_page_nums]
-        # scope = 'Local' if scope else 'Global'
-        # return [Outline(f'{scope} search kwywords: {regex}', page_range, self.pb_pdf) for page_range in page_ranges]
-        matched_page_num = max(consecutive_int_list(matched_page_nums), key=len)
+
+        matched_page_num = max(consecutive_int_list(matched_page_nums), key=len, default=None)
+        if matched_page_num is None:
+            return []
         page_range = min(matched_page_num), max(matched_page_num)
         scope = 'Local' if scope else 'Global'
-        return [Outline(f'{scope} search kwywords: {regex}', page_range, self.pb_pdf)]
+        return [Outline(f'{scope} search keywords: {regex}', page_range, self.pb_pdf)]
 
     
     def __repr__(self):
@@ -457,18 +455,56 @@ class Outline:
         return f'<{self.__class__.__name__}: {self.title} {self.from_page} - {self.to_page}>'
 
 
-class IndependentAuditorReport(PDF):
+class IndependentAuditorReport:
 
-    outline_regex = r'^(?!.*internal)(?=.*report|responsibilities).*auditor.*$'
+    title_regex = r'^(?!.*internal)(?=.*report|responsibilities).*auditor.*$'
     auditor_regex = r'\n(?!.*?(Institute|Responsibilities).*?).*?(?P<auditor>.{4,}\S|[A-Z]{4})(?:LLP\s*)?\s*((PRC\s*?|Chinese\s*?)?Certified\s*Public|Chartered)\s*Accountants*'
 
-    def __init__(self, pdf_obj):
-        super().__init__(pdf_obj)
-        self._pages = self.get_outline(IndependentAuditorReport.outline_regex)
-
+    def __init__(self, outline):
+        self.outline = outline
+    
+    @classmethod
+    def create(cls, outline):
+        fail_conditions = {
+            isinstance(outline, Outline) is False: lambda: TypeError,
+            not outline.pages: lambda: ValueError,
+            re.search(IndependentAuditorReport.title_regex, outline.title, flags=re.IGNORECASE) is None: lambda: ValueError,
+        }
+        create_failed = fail_conditions.get(True, default=False)
+        if create_failed:
+            raise create_failed('Failed to initialise IndependentAuditorReport')
+        return cls(outline)
+    
+    @property
+    def outline(self):
+        return self._outline
+    
     @property
     def pages(self):
         return self._pages
+    
+    @outline.setter
+    def outline(self, outline):
+        self._outline = outline
+        self._pages = outline.pages
+    
+    @property
+    def auditor(self) -> list:
+        pages = self.pages
+        last_page = pages[-1]
+        cols = [last_page.left_column, last_page.right_column]
+        cols_results = [col.search(IndependentAuditorReport.auditor_regex) for col in cols if any(cols)]
+        page_results = [last_page.search(IndependentAuditorReport.auditor_regex)]
+        if any(cols_results) or any(page_results):
+            results = cols_results + page_results
+            return {result.group('auditor') for result in results if result}
+        return None
+    
+
+
+                
+
+
 
     # @property
     # def auditor(self):
@@ -486,23 +522,60 @@ class IndependentAuditorReport(PDF):
 
 
 if __name__ == "__main__":
-    from os import sys, path
+    from os import sys, path, getpid
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     from api.get_data import HKEX_API
     from helper import over_a_year, yesterday, today, n_yearsago
-    query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
-    for data in query.get_data():
-        url = data.file_link
-        print(url)
-        pdf = PDF.create(src=url)
-        if pdf is None:
-            continue
-        toc = pdf.toc
-        if not toc.empty:
-            print(toc)
-        else:
-            with open('empty_toc.txt', 'a') as f:
-                f.write(f'{url}\n')
+    # import multiprocessing as mp
+    import concurrent.futures 
+    import time
+    start = time.perf_counter()
+
+    # query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
+    url = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0828/2020082802897.pdf'
+    pdf = PDF.create(url)
+    audit_report_outline = pdf.get_outline(IndependentAuditorReport.title_regex)
+    audit_report = IndependentAuditorReport.create(audit_report_outline)
+    print(audit_report.auditor)
+    # with open('empty_toc.txt', 'r') as f:
+    #     urls = f.readlines()
+    
+    # def get_outline(url):
+    #     url = url.replace('\n', '')
+    #     print(getpid(), url)
+    #     pdf = PDF.create(src=url)
+    #     result = pdf.get_outline(r'audit')
+    #     with open('test.txt', 'a') as f:
+    #         f.write(f'{result}, {url}\n')
+    
+    # with concurrent.futures.ProcessPoolExecutor() as executor:
+        # print([i for i in executor.map(get_outline, urls)])
+        # executor.map(get_outline, urls)
+        # futures = [executor.submit(get_outline, url) for url in urls]
+        # for future in concurrent.futures.as_completed(futures):
+        #     result = future.result()
+        #     results.append(result)
+    # print(results)
+    # for r in results:
+    #     print(r)
+    # print(f'results: {results}')
+    end = time.perf_counter()
+    print(f'Finished in {round(end - start, 2)}sec')
+        #     # print('finish mapping..')
+
+
+
+    # for data in query.get_data():
+    #     url = data.file_link
+    #     print(url)
+    #     pdf = PDF.create(src=url)
+    #     if pdf is None:
+    #         continue
+    #     toc = pdf.toc
+    #     print(toc)
+    #     if toc.empty:
+    #         with open('empty_toc.txt', 'a') as f:
+    #             f.write(f'{url}\n')
             
     
     # logging.basicConfig(level=logging.DEBUG)
