@@ -158,19 +158,23 @@ class PDF:
     def search_outline(self, regex: Pattern, scope=None) -> list:
         pdf = self.pb_pdf
         pages = scope or pdf.pages
+        
         matched_page_nums = set()
         for p in pages:
             page = Page.create(p)
             if not page or page.df_feature_text.empty:
                 continue
-            elif any(page.df_feature_text.text.str.contains(regex, flags=re.IGNORECASE)):
-                matched_page_nums.add(page.page_number)
             print(f'searching page {page.page_number}...')
-
-        matched_page_num = max(consecutive_int_list(matched_page_nums), key=len, default=None)
+            if any(page.df_feature_text.text.str.contains(regex, flags=re.IGNORECASE)):
+                matched_page_nums.add(page.page_number)
+                # print(f'found {page.page_number}')
+        
+        # print(consecutive_int_list(sorted(matched_page_nums)))
+        matched_page_num = max(consecutive_int_list(sorted(matched_page_nums)), key=len, default=None)
         if matched_page_num is None:
             return []
         page_range = min(matched_page_num), max(matched_page_num)
+        # print(page_range)
         scope = 'Local' if scope else 'Global'
         return [Outline(f'{scope} search pattern: {regex}', page_range, self.pb_pdf)]
 
@@ -217,8 +221,9 @@ class Page:
         normal_bbx_coord = (df.x0 > 0) & (df.top > 0) & (df.x1 > 0) & (df.bottom > 0)
         normal_x1 = df['x1'] < self.page.width
         within_bbx = normal_bbx_coord & normal_x1
-        df_char_within_bbox = df[within_bbx & normal_x1]
+        df_char_within_bbox = df[within_bbx]
         return df_char_within_bbox
+        # return df
 
     @property
     def df_decarative_text(self) -> pd.DataFrame:
@@ -243,6 +248,7 @@ class Page:
         if df_feature_text.empty:
             return df_feature_text
         df_feature_text = df_feature_text[df_feature_text.text.str.contains(r'\w+')]
+
         self.df_lang = None
         return df_feature_text
 
@@ -251,8 +257,7 @@ class Page:
         df_feature_text = self.df_feature_text
         if df_feature_text.empty:
             return df_feature_text
-        df_bt = df_feature_text[df_feature_text['size'].isin(
-            self.main_fontsize)]
+        df_bt = df_feature_text[df_feature_text['size'].isin(self.main_fontsize)]
         df_bold_text = df_bt.groupby(['top', 'bottom', 'fontname', 'size']).agg(
             {'x0': 'min', 'x1': 'max', 'text': lambda x: ''.join(x)}).reset_index()
         return df_bold_text
@@ -307,35 +312,18 @@ class Page:
             df_main_text = self.df_main_text
             if df_main_text.empty:
                 return None
-            # x0_cond = df_main_text['x0'] > 0
-            # top_cond = df_main_text['top'] > 0
-            # x0, top = df_main_text[top_cond & x0_cond][['x0','top']].min()
             x0, top = df_main_text[['x0','top']].min()
-            
-            # x1_cond = df_main_text['x1'] < 1000
-            # x1, bottom = df_main_text[x1_cond][['x1', 'bottom']].max()
             x1, bottom = df_main_text[['x1', 'bottom']].max()
-            # print(self, lang, x0, top, x1, bottom)
             df_feature_text = self.df_feature_text
             if not df_feature_text.empty:
-                # top_cond = df_feature_text['top'] > 0
-                # top = [top, df_feature_text[top_cond]['top'].min()]
                 top = [top, df_feature_text['top'].min()]
-                # top = [t for t in top if t > 0] or [0]
-
-                x1 = [x1, df_feature_text['x1'].max()] 
-                # x1_cond = df_feature_text['x1'] < 1000
-                # x1 = [x1, df_feature_text[x1_cond]['x1'].max()] 
-                # x1 = [x for x in x1 if x < float(self.page.width)] or [self.page.width]
-                
+                x1 = [x1, df_feature_text['x1'].max()]                
                 self.df_lang = None
                 return x0, min(top), max(x1), bottom
-            
             self.df_lang = None
             return x0, top, x1, bottom
 
         en_bbx, cn_bbx = bbox(self, 'en'), bbox(self, 'cn')
-        # print(self, en_bbx, cn_bbx)
 
         if not (en_bbx and cn_bbx):
             return en_bbx or cn_bbx
@@ -534,7 +522,7 @@ class IndependentAuditorReport:
         return Page_bilingual.create(self.pages[-1].page)
     
     @property
-    def kam_pages(self):
+    def kam_pages(self) -> list:
         pages = self.pages 
         kam_page_range = []
         for page in pages:
@@ -543,6 +531,9 @@ class IndependentAuditorReport:
             df_kam_feature_text = page.df_feature_text[page.df_feature_text.text.str.contains(IndependentAuditorReport.kam_regex, flags=re.IGNORECASE)]
             if not df_kam_feature_text.empty:
                 kam_page_range.append(page.page_number)
+                # print(f'kam found at page {page.page_number}')
+        if not kam_page_range: 
+            return []
         kam_pages = [page for page in pages if page.page_number in range(min(kam_page_range), max(kam_page_range) + 1)]
         return kam_pages 
     
@@ -559,19 +550,70 @@ class IndependentAuditorReport:
         
 
     @property
-    def kams(self):
-        return KeyAuditMatter(self.kam_pages)
+    def kams(self) -> list:
+        return KeyAuditMatter.create(self.kam_pages)
 
 
 class KeyAuditMatter:
+    keywords = list(pd.read_csv('kam_keywords.csv', header=None, names = ['kam_kws']).kam_kws.sort_values().unique())
+    
     def __init__(self, kam_pages):
         self.pages = kam_pages
     
+    @classmethod
+    def create(cls, kam_pages):
+        if not kam_pages:
+            return None
+        return cls(kam_pages)
+    
     @property
-    def feature_texts(self):
+    def kams(self) -> list:
+        df_kams = self.df_kams
+        if df_kams.empty:
+            return []
+        return df_kams.text.to_list()
+
+    @property
+    def tags(self) -> list:
+        kams = self.kams
+        keywords = self.keywords
+        return [keyword for keyword in keywords if any(re.search(keyword, kam, flags=re.IGNORECASE) for kam in kams)]
+
+
+    @property
+    def df_kams(self):
+        dfs_feature_text = self.dfs_feature_text
+        kam_cond = dfs_feature_text.text.str.contains('|'.join(KeyAuditMatter.keywords), flags=re.IGNORECASE)
+        return dfs_feature_text[kam_cond]
+
+    @property
+    def dfs_feature_text(self):
+        # texts = []
+        df = pd.DataFrame()
         for page in self.pages:
-            print(page.df_section_text.text)
+            df_feature_text = page.df_feature_text
+            if not df_feature_text.empty:
+                df_feature_text = self.group_feature_text(df_feature_text)
+                df_feature_text['page_num'] = page.page_number
+                df = df.append(df_feature_text, ignore_index=True)
+        return df
         # return [page.df_feature_text.text.to_list() for page in self.pages]
+    
+    @staticmethod
+    def group_feature_text(df_feature_text):
+        text_interval = df_feature_text['bottom'].shift() - df_feature_text['top']
+        indicator = (text_interval.abs() > df_feature_text['size']).cumsum()
+        df_feature_text = df_feature_text.groupby(indicator).agg({
+            'top': 'first',
+            'bottom': 'last',
+            'fontname': 'first',
+            'size': 'first',
+            'x0': 'first',
+            'x1': 'first',
+            'text': ''.join
+        })
+        return df_feature_text
+
 
 
 class Page_bilingual(Section, Page):
@@ -590,7 +632,7 @@ class Page_bilingual(Section, Page):
             return df_feature_text
         df_feature_text = df_feature_text[df_feature_text.text.str.contains(r'\w+')]
         return df_feature_text
-    
+
     @property
     def df_section_text(self) -> pd.DataFrame:
         self.df_lang = 'en'
@@ -690,12 +732,26 @@ if __name__ == "__main__":
     def test_kam(url):
         print(url)
         pdf = PDF.create(url)
+        if pdf is None:
+            return None
         audit_report_outline = pdf.get_outline(IndependentAuditorReport.title_regex)
-        if not audit_report_outline: return None
-        audit_report = IndependentAuditorReport.create(audit_report_outline[0])
-        kams = KeyAuditMatter(audit_report.kam_pages)
-        print(kams.feature_texts)
-        return kams
+        if not audit_report_outline:
+            return None
+        try:
+            audit_report = IndependentAuditorReport.create(audit_report_outline[0])
+        except Exception as e:
+            print(e)
+            return None
+        kams = KeyAuditMatter.create(audit_report.kam_pages)
+        print(kams)
+        if kams is None:
+            with open('no_kams.csv', 'a') as f:
+                f.write(f'{url}\n')
+            return None
+        elif not kams.df_kams.empty:
+            print(kams.df_kams)
+            kams.df_kams.text.to_csv('kams.csv', index=False,  header=False, mode='a')
+            return kams
 
     
     def job(url):
@@ -705,21 +761,7 @@ if __name__ == "__main__":
         if not pdf:
             return None
         
-        audit_report_outlines = pdf.get_outline(IndependentAuditorReport.title_regex)
-        # if not audit_report_outlines:
-        #     return None
-        
-        # try:
-        #     audit_report = IndependentAuditorReport.create(audit_report_outlines[0])
-        # except:
-        #     return None
-        
-        # auditor = audit_report.auditor
-        
-        # print(auditor, url)
-        # with open('auditors.txt', 'a') as f:
-        #     f.write(f'{auditor}, {url}\n')
-        
+        audit_report_outlines = pdf.get_outline(IndependentAuditorReport.title_regex)       
         audit_reports = [IndependentAuditorReport.create(outline) for outline in audit_report_outlines if audit_report_outlines]
         auditors = [list(audit_report.auditor) for audit_report in audit_reports if audit_reports and audit_report.auditor]
         auditors = {auditor for auditor in flatten(auditors) if auditor} or None
@@ -733,28 +775,11 @@ if __name__ == "__main__":
 
     query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
     urls = [data.file_link for data in query.get_data()]
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/gem/2020/0918/2020091801028.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0908/2020090800537.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0831/2020083100609.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0828/2020082800890.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0827/2020082700690.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0827/2020082700366.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0823/2020082300051.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100634.pdf'] # x1
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100291.pdf'] # cn
-    # urls =['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0831/2020083100541.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000811.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/gem/2020/0916/2020091601128.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0917/2020091701137.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/gem/2020/0730/2020073000512.pdf']
-    # urls =['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0721/2020072100485.pdf']
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0721/2020072100609.pdf'] # None
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0429/2020042903533.pdf']
-    urls = ['https://www1.hkexnews.hk/listedco/listconews/gem/2019/1001/2019100100003.pdf']
+    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0924/2020092401407.pdf']
     
-    # err_url = 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0327/2020032700490.pdf'
-    # idx = urls.index(err_url)
-    # urls = urls[idx:]
+    err_url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042800145.pdf'
+    idx = urls.index(err_url)
+    urls = urls[idx:]
     for url in urls:
         # job(url)
         kams = test_kam(url)
