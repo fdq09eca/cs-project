@@ -1,39 +1,8 @@
 from io import BytesIO
 from typing import Union, Pattern, Match
-from contextlib import contextmanager
-from itertools import zip_longest, groupby
-from operator import itemgetter
-import pandas as pd
-import requests
-import re
-import logging
-import os
-import time
-import pdfplumber
-import PyPDF2
-
-def consecutive_int_list(li):
-    '''
-    helper: return a list of list of consecutive integers
-    '''
-    
-    return [list(map(itemgetter(1), g)) for k, g in groupby(enumerate(li), lambda xi: xi[0]-xi[1])]
-
-def utf8_str(string: str) -> str:
-    '''
-    helper: ensure string has utf-8 encoding
-    '''
-    if not isinstance(string, str):
-        string = string.decode('utf-8', errors="ignore")
-    return re.sub(r'\r|\n|\ufeff', '', string)
-
-
-def flatten(li: list) -> list:
-    '''
-    helper: flatten a irregular list recursively;
-    for flattening multiple levels of outlines.
-    '''
-    return sum(map(flatten, li), []) if isinstance(li, list) else [li]
+from itertools import zip_longest
+from helper import flatten, utf8_str, consecutive_int_list
+import pandas as pd, requests, re, logging, os, pdfplumber, PyPDF2
 
 
 class PDF:
@@ -144,11 +113,12 @@ class PDF:
                    for outline in outlines]
         toc = pd.DataFrame(outline, columns=['title', 'from_page', 'to_page'])
         column_types = {'title': str, 'from_page': int, 'to_page': 'Int64'}
-        return toc.astype(column_types)
+        toc = toc.astype(column_types)
+        return toc
 
     def get_outline(self, regex: Pattern) -> list:
         '''
-        return a list of outline
+        return a list of outline that matches with the regex pattern
         '''
         outlines = self.outlines
         if outlines:
@@ -160,6 +130,7 @@ class PDF:
         pages = scope or pdf.pages
         
         matched_page_nums = set()
+        
         for p in pages:
             page = Page.create(p)
             if not page or page.df_feature_text.empty:
@@ -167,14 +138,13 @@ class PDF:
             print(f'searching page {page.page_number}...')
             if any(page.df_feature_text.text.str.contains(regex, flags=re.IGNORECASE)):
                 matched_page_nums.add(page.page_number)
-                # print(f'found {page.page_number}')
         
-        # print(consecutive_int_list(sorted(matched_page_nums)))
         matched_page_num = max(consecutive_int_list(sorted(matched_page_nums)), key=len, default=None)
+        
         if matched_page_num is None:
             return []
+        
         page_range = min(matched_page_num), max(matched_page_num)
-        # print(page_range)
         scope = 'Local' if scope else 'Global'
         return [Outline(f'{scope} search pattern: {regex}', page_range, self.pb_pdf)]
 
@@ -223,7 +193,6 @@ class Page:
         within_bbx = normal_bbx_coord & normal_x1
         df_char_within_bbox = df[within_bbx]
         return df_char_within_bbox
-        # return df
 
     @property
     def df_decarative_text(self) -> pd.DataFrame:
@@ -330,11 +299,12 @@ class Page:
         
         x0, top, x1, bottom = zip(en_bbx, cn_bbx)
 
-        min_x0  = min(x0)
-        min_top = min(top)
-        max_x1 = max([max(x1), min(x0)])
-        max_bottom = max([max(bottom), min(top)])
-        return min_x0, min_top, max_x1, max_bottom
+        # min_x0  = min(x0)
+        # min_top = min(top)
+        # max_x1 = max([max(x1), min(x0)])
+        # max_bottom = max([max(bottom), min(top)])
+        # return min_x0, min_top, max_x1, max_bottom
+        return min(x0), min(top), max(x1), max(bottom)
 
     @property
     def col_division(self) -> float:
@@ -399,8 +369,9 @@ class Page:
         page = self.page.crop(bbox_main_text, relative=False)
         self.page = page
 
-    def search(self, regex: Pattern) -> Union[Match, None]:
-        return re.search(regex, self.text, flags=re.IGNORECASE | re.MULTILINE)
+    def search(self, regex: Pattern, en_only=True) -> Union[Match, None]:
+        text = re.sub(r'[^\x00-\x7F]+', '', self.text) if en_only else self.text
+        return re.search(regex, text, flags=re.IGNORECASE | re.MULTILINE)
 
     def get_section(self, regex: Pattern) -> list:
         sections = self.sections
@@ -423,200 +394,15 @@ class Page:
             self, r_bbx, title='Right Column', relative=relative)
         return left_col, right_col
 
+    
+    def to_bilingual(self):
+        return Page_bilingual.create(self.page)
+
     def __repr__(self):
         return f'<{self.__class__.__name__} {self.page_number}>'
 
 
-class Section(Page):
-    def __init__(self, page, title=None):
-        super().__init__(page)
-        self.title = title
-
-    def __repr__(self):
-        return f'<{self.__class__.__name__}: {self.title}>'
-
-class Outline:
-    
-    def __init__(self, title, page_range, pb_pdf):
-        self.title = title
-        self.page_range = page_range
-        self.pb_pdf = pb_pdf
-    
-
-    @property
-    def pages(self):
-        page_range = self.page_range
-        pb_pdf = self.pb_pdf
-        return [Page.create(pb_pdf.pages[p]) for p in page_range]
-
-    @property
-    def page_range(self):
-        from_page, to_page = self.from_page, self.to_page
-        if from_page and to_page:
-            return range(from_page, to_page + 1)
-        return []
-
-    @page_range.setter
-    def page_range(self, page_range):
-        if type(page_range) is not tuple:
-            raise TypeError(f'page_range type {type(page_range)} is not tuple')
-        self._page_range = page_range
-
-    @property
-    def title(self):
-        return self._title
-
-    @title.setter
-    def title(self, title):
-        self._title = utf8_str(title).capitalize()
-
-    @property
-    def from_page(self):
-        return self._page_range[0]
-
-    @property
-    def to_page(self):
-        return self._page_range[-1]
-
-    def __repr__(self):
-        return f'<{self.__class__.__name__}: {self.title} {self.from_page} - {self.to_page}>'
-
-
-class IndependentAuditorReport:
-
-    title_regex = r'^(?!.*internal)(?=.*report|.*responsibilities).*auditor.*$'
-    auditor_regex = r'\n(?!.*?(Institute|Responsibilities).*?).*?(?P<auditor>.{4,}\S|[A-Z]{4})(?:LLP\s*)?\s*((PRC\s*?|Chinese\s*?)?Certified\s*Public|Chartered)\s*Accountants*'
-    kam_regex = r'Key Audit Matter[s]*'
-
-    def __init__(self, outline):
-        self.outline = outline
-    
-    @classmethod
-    def create(cls, outline):
-        fail_conditions = {
-            isinstance(outline, Outline) is False: lambda err_msg: TypeError(err_msg + f'argument must be an Outline instance.'),
-            not any(outline.pages): lambda err_msg: ValueError(err_msg + f'outline instance must have at least one page.'),
-            re.search('audit', outline.title, flags=re.IGNORECASE) is None: lambda err_msg: ValueError(err_msg + f'outline title: {outline.title} must contain keyword: "audit".'),
-        }
-        create_failed = fail_conditions.get(True, False)
-        if create_failed:
-            raise create_failed('Failed to initialise Independent Auditor Report instance.')
-        
-        return cls(outline)
-    
-    @property
-    def outline(self):
-        return self._outline
-    
-    @outline.setter
-    def outline(self, outline):
-        self._outline = outline
-        self._pages = [page for page in outline.pages if page]
-    
-    @property
-    def pages(self):
-        return self._pages
-
-    @property
-    def auditor_page(self):
-        return Page_bilingual.create(self.pages[-1].page)
-    
-    @property
-    def kam_pages(self) -> list:
-        pages = self.pages 
-        kam_page_range = []
-        for page in pages:
-            if page.df_feature_text.empty:
-                continue
-            df_kam_feature_text = page.df_feature_text[page.df_feature_text.text.str.contains(IndependentAuditorReport.kam_regex, flags=re.IGNORECASE)]
-            if not df_kam_feature_text.empty:
-                kam_page_range.append(page.page_number)
-                # print(f'kam found at page {page.page_number}')
-        if not kam_page_range: 
-            return []
-        kam_pages = [page for page in pages if page.page_number in range(min(kam_page_range), max(kam_page_range) + 1)]
-        return kam_pages 
-    
-
-    @property
-    def auditor(self) -> set:
-        auditor_page = self.auditor_page
-        cols = [auditor_page.left_column, auditor_page.right_column]
-        cols_results = [col.search(IndependentAuditorReport.auditor_regex) for col in cols if any(cols) and col]
-        cols_results = [result for result in cols_results if result]
-        page_results = [auditor_page.search(IndependentAuditorReport.auditor_regex)]
-        results = {result.group('auditor') for result in cols_results or page_results if result}
-        return results or None
-        
-
-    @property
-    def kams(self) -> list:
-        return KeyAuditMatter.create(self.kam_pages)
-
-
-class KeyAuditMatter:
-    keywords = list(pd.read_csv('kam_keywords.csv', header=None, names = ['kam_kws']).kam_kws.sort_values().unique())
-    
-    def __init__(self, kam_pages):
-        self.pages = kam_pages
-    
-    @classmethod
-    def create(cls, kam_pages):
-        if not kam_pages:
-            return None
-        return cls(kam_pages)
-    
-    @property
-    def kams(self) -> list:
-        df_kams = self.df_kams
-        if df_kams.empty:
-            return []
-        return df_kams.text.to_list()
-
-    @property
-    def tags(self) -> list:
-        kams = self.kams
-        keywords = self.keywords
-        return [keyword for keyword in keywords if any(re.search(keyword, kam, flags=re.IGNORECASE) for kam in kams)]
-
-
-    @property
-    def df_kams(self):
-        dfs_feature_text = self.dfs_feature_text
-        kam_cond = dfs_feature_text.text.str.contains('|'.join(KeyAuditMatter.keywords), flags=re.IGNORECASE)
-        return dfs_feature_text[kam_cond]
-
-    @property
-    def dfs_feature_text(self):
-        # texts = []
-        df = pd.DataFrame()
-        for page in self.pages:
-            df_feature_text = page.df_feature_text
-            if not df_feature_text.empty:
-                df_feature_text = self.group_feature_text(df_feature_text)
-                df_feature_text['page_num'] = page.page_number
-                df = df.append(df_feature_text, ignore_index=True)
-        return df
-        # return [page.df_feature_text.text.to_list() for page in self.pages]
-    
-    @staticmethod
-    def group_feature_text(df_feature_text):
-        text_interval = df_feature_text['bottom'].shift() - df_feature_text['top']
-        indicator = (text_interval.abs() > df_feature_text['size']).cumsum()
-        df_feature_text = df_feature_text.groupby(indicator).agg({
-            'top': 'first',
-            'bottom': 'last',
-            'fontname': 'first',
-            'size': 'first',
-            'x0': 'first',
-            'x1': 'first',
-            'text': ''.join
-        })
-        return df_feature_text
-
-
-
-class Page_bilingual(Section, Page):
+class Page_bilingual(Page):
     def __init__(self, page):
         super().__init__(page)
     
@@ -672,7 +458,6 @@ class Page_bilingual(Section, Page):
             return df
         return df[df.top/df.bottom.max() < 0.2]
 
-
     @property
     def col_division(self) -> Union[None, float]:
         df_section_text = self.df_section_text
@@ -688,103 +473,63 @@ class Page_bilingual(Section, Page):
         if min_x0 != max_x0:
             col_division = float(max_x0) - float(buffer)
             print(f'There is another colmun divided at {float(col_division)}.')
-            if col_division < x0:
-                print(f"less than x0: {x0}, return None")
-            return col_division if col_division > x0 else None
+            if col_division > x0:
+                return col_division
         return None
 
-if __name__ == "__main__":
-    from os import sys, path, getpid
-    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-    from api.get_data import HKEX_API
-    from helper import over_a_year, yesterday, today, n_yearsago
-    import concurrent.futures 
-    import time
 
-    # urls = [
-    # 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901807.pdf',
-    # 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073001097.pdf',
-    # 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0730/2020073000811.pdf',
-    # 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0729/2020072900505.pdf',
-    # 'https://www1.hkexnews.hk/listedco/listconews/gem/2020/0629/2020062901859.pdf',
-    # 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042801316.pdf',
-    # 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100265.pdf', # hsbc
-    # 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0823/2020082300051.pdf'
+class Section(Page):
+    def __init__(self, page, title=None):
+        super().__init__(page)
+        self.title = title
 
-    # ]
-    def test_code(url):
-        pdf = PDF.create(url)
-        audit_report_outline = pdf.get_outline(IndependentAuditorReport.title_regex)
-        if not audit_report_outline: return None
-        try:
-            audit_report = IndependentAuditorReport.create(audit_report_outline[0])
-        except:
-            return None
-        _last_page = audit_report.pages[-1].page
-        last_page = Page_bilingual.create(_last_page)
-        cols = last_page.left_column, last_page.right_column
-        cols_results = [col.search(IndependentAuditorReport.auditor_regex) if col else None for col in cols if any(cols)]
-        page_results = [last_page.search(IndependentAuditorReport.auditor_regex)]
-        print([result.group('auditor') for result in cols_results + page_results if result])
-        return last_page
+    def __repr__(self):
+        return f'<{self.__class__.__name__}: {self.title}>'
+
+
+class Outline:
     
+    def __init__(self, title, page_range, pb_pdf):
+        self.title = title
+        self.page_range = page_range
+        self.pb_pdf = pb_pdf
     
-    def test_kam(url):
-        print(url)
-        pdf = PDF.create(url)
-        if pdf is None:
-            return None
-        audit_report_outline = pdf.get_outline(IndependentAuditorReport.title_regex)
-        if not audit_report_outline:
-            return None
-        try:
-            audit_report = IndependentAuditorReport.create(audit_report_outline[0])
-        except Exception as e:
-            print(e)
-            return None
-        kams = KeyAuditMatter.create(audit_report.kam_pages)
-        print(kams)
-        if kams is None:
-            with open('no_kams.csv', 'a') as f:
-                f.write(f'{url}\n')
-            return None
-        elif not kams.df_kams.empty:
-            print(kams.df_kams)
-            kams.df_kams.text.to_csv('kams.csv', index=False,  header=False, mode='a')
-            return kams
 
-    
-    def job(url):
-        print(url)
-        
-        pdf = PDF.create(url)
-        if not pdf:
-            return None
-        
-        audit_report_outlines = pdf.get_outline(IndependentAuditorReport.title_regex)       
-        audit_reports = [IndependentAuditorReport.create(outline) for outline in audit_report_outlines if audit_report_outlines]
-        auditors = [list(audit_report.auditor) for audit_report in audit_reports if audit_reports and audit_report.auditor]
-        auditors = {auditor for auditor in flatten(auditors) if auditor} or None
-        print(auditors)
-        # with open('auditors.txt', 'a') as f:
-        #     f.write(f'{auditors}, {url}\n')
+    @property
+    def pages(self):
+        page_range = self.page_range
+        pb_pdf = self.pb_pdf
+        return [Page.create(pb_pdf.pages[p]) for p in page_range]
 
-        
+    @property
+    def page_range(self) -> list:
+        from_page, to_page = self.from_page, self.to_page
+        if from_page and to_page:
+            return list(range(from_page, to_page + 1))
+        return []
 
-    start = time.perf_counter()
+    @page_range.setter
+    def page_range(self, page_range):
+        if type(page_range) is not tuple or not page_range:
+            raise TypeError(f'page_range type {type(page_range)} is not tuple')
+        self._page_range = page_range
 
-    query = HKEX_API(from_date=n_yearsago(n=1), to_date=today())
-    urls = [data.file_link for data in query.get_data()]
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0924/2020092401407.pdf']
-    
-    err_url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0428/2020042800145.pdf'
-    idx = urls.index(err_url)
-    urls = urls[idx:]
-    for url in urls:
-        # job(url)
-        kams = test_kam(url)
-        # last_page = test_code(url)
+    @property
+    def title(self) -> str:
+        return self._title
 
-    end = time.perf_counter()
+    @title.setter
+    def title(self, title):
+        self._title = utf8_str(title).capitalize()
 
-    print(f'time uesd {round(end - start, 2)}s')
+    @property
+    def from_page(self):
+        return min(self._page_range, default=None)
+
+    @property
+    def to_page(self):
+        return max(self._page_range, default=None)
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__}: {self.title} {self.from_page} - {self.to_page}>'
+
