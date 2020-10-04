@@ -21,7 +21,6 @@ class PDF:
             return cls(src)
         return None
 
-
     @property
     def src(self):
         return self._src
@@ -121,9 +120,8 @@ class PDF:
         return a list of outline that matches with the regex pattern
         '''
         outlines = self.outlines
-        if outlines:
-            return [outline for outline in outlines if re.search(regex, outline.title, flags=re.IGNORECASE)]
-        return self.search_outline(regex)
+        result = [outline for outline in outlines if outlines and re.search(regex, outline.title, flags=re.IGNORECASE)] 
+        return result if result else self.search_outline(regex)
 
     def search_outline(self, regex: Pattern, scope=None) -> list:
         pdf = self.pb_pdf
@@ -158,13 +156,18 @@ class Page:
     def __init__(self, page):
         self.page = page
         self.df_lang = None
-        self.remove_noise()
+        # self.remove_noise()
+        # if not self.df_decarative_text.empty:
+        #     self.remove_noise()
 
     @classmethod
     def create(cls, page, **kwargs):
         # return cls(page=page, **kwargs)
         try:
-            return cls(page=page, **kwargs)
+            page = cls(page=page, **kwargs)
+            page.df_main_text
+            page.remove_noise()
+            return page
         except Exception as e:
             print(f'{cls.__name__}({page}, {kwargs}) instance initalise failed: {e}')
             return None
@@ -189,10 +192,14 @@ class Page:
         }
         df = df_langs.get(self.df_lang, df)
         normal_bbx_coord = (df.x0 > 0) & (df.top > 0) & (df.x1 > 0) & (df.bottom > 0)
-        normal_x1 = df['x1'] < self.page.width
-        within_bbx = normal_bbx_coord & normal_x1
+        normal_x1 = df['x1'] <= self.page.width
+        # within_bbx = normal_bbx_coord & normal_x1
+        within_bbx = normal_bbx_coord
         df_char_within_bbox = df[within_bbx]
+        # print(self.page.width)
+        # print(''.join(df[~normal_x1].text.to_list()))
         return df_char_within_bbox
+
 
     @property
     def df_decarative_text(self) -> pd.DataFrame:
@@ -259,7 +266,7 @@ class Page:
             'text': ''.join
         })
         df_section_text['next_top'] = df_section_text.top.shift(-1)
-        df_section_text.fillna(self.bbox_main_text[-1], inplace=True)
+        df_section_text.fillna(self.page.height, inplace=True)
         return df_section_text
 
     
@@ -275,35 +282,33 @@ class Page:
     @property
     def bbox_main_text(self) -> tuple:
 
-        def bbox(self, lang):
+        def bbox(lang):
             self.df_lang = lang
-            
             df_main_text = self.df_main_text
             if df_main_text.empty:
                 return None
-            x0, top = df_main_text[['x0','top']].min()
-            x1, bottom = df_main_text[['x1', 'bottom']].max()
+            
+            x0 = df_main_text.x0.min()
+            top = df_main_text.top.min()
+            x1 = df_main_text.x1.max()
+            bottom = df_main_text.bottom.max()
+            
             df_feature_text = self.df_feature_text
             if not df_feature_text.empty:
                 top = [top, df_feature_text['top'].min()]
                 x1 = [x1, df_feature_text['x1'].max()]                
                 self.df_lang = None
                 return x0, min(top), max(x1), bottom
+                # return x0, min(top), x1, bottom
             self.df_lang = None
             return x0, top, x1, bottom
 
-        en_bbx, cn_bbx = bbox(self, 'en'), bbox(self, 'cn')
+        en_bbx, cn_bbx = bbox('en'), bbox('cn')
 
         if not (en_bbx and cn_bbx):
             return en_bbx or cn_bbx
-        
+       
         x0, top, x1, bottom = zip(en_bbx, cn_bbx)
-
-        # min_x0  = min(x0)
-        # min_top = min(top)
-        # max_x1 = max([max(x1), min(x0)])
-        # max_bottom = max([max(bottom), min(top)])
-        # return min_x0, min_top, max_x1, max_bottom
         return min(x0), min(top), max(x1), max(bottom)
 
     @property
@@ -351,12 +356,18 @@ class Page:
 
         def section_bbx(self, section):
             x0, top, x1, bottom = self.bbox_main_text
-            return x0, section.top, x1, section.next_top
+            x0, top, x1, bottom = x0, section.top, x1, section.next_top
+            if top >= bottom:
+                return None
+            return x0, top, x1, bottom
 
         sections = []
         for sec in df_section_text.itertuples(index=False):
+            # if sec.next_top > self.bbox_main_text[-1]:
+            #     continue
             sec_bbx = section_bbx(self, sec)
-            section = self.page.within_bbox(sec_bbx, relative=False)
+            if not sec_bbx: continue
+            section = self.page.crop(sec_bbx, relative=False)
             section = Section.create(section, title=sec.text)
             # section = self.create_section(sec_bbx, title = sec.text)
             if section:
@@ -366,7 +377,13 @@ class Page:
     def remove_noise(self) -> None:
         bbox_main_text = self.bbox_main_text
         if bbox_main_text is None: return None
-        page = self.page.crop(bbox_main_text, relative=False)
+        try:
+            page = self.page.crop(bbox_main_text, relative=False)
+        except Exception as e:
+            print(e)
+            x0, top, x1, bottom = bbox_main_text
+            bbox_main_text = x0, top, self.page.width, bottom
+            page = self.page.crop(bbox_main_text, relative=False)
         self.page = page
 
     def search(self, regex: Pattern, en_only=True) -> Union[Match, None]:
@@ -375,7 +392,7 @@ class Page:
 
     def get_section(self, regex: Pattern) -> list:
         sections = self.sections
-        return [section for section in sections if re.match(regex, section.title, flags=re.IGNORECASE)]
+        return [section for section in sections if re.search(regex, section.title, flags=re.IGNORECASE)]
 
     def create_section(self, sec_bbx, title=None, relative=False):
         sec = self.page.within_bbox(sec_bbx, relative=relative)
@@ -448,7 +465,7 @@ class Page_bilingual(Page):
             return df_section_text
         df_section_text.sort_values(by=['top'], inplace=True)
         df_section_text['next_top'] = df_section_text.top.shift(-1)
-        df_section_text.fillna(self.bbox_main_text[-1], inplace=True)
+        df_section_text.fillna(self.page.height, inplace=True)
         return df_section_text
     
     @property
@@ -532,4 +549,64 @@ class Outline:
 
     def __repr__(self):
         return f'<{self.__class__.__name__}: {self.title} {self.from_page} - {self.to_page}>'
+
+class PageWithSection:
+    
+    section_regex = r''
+    
+    def __init__(self, pages):
+        self.pages = pages
+    
+    @classmethod
+    def retrieve(cls, pages):
+        page_range = []
+        for page in pages:
+            if page.df_feature_text.empty:
+                continue
+            df_kam_feature_text = page.df_feature_text[page.df_feature_text.text.str.contains(cls.section_regex, flags=re.IGNORECASE)]
+            if not df_kam_feature_text.empty:
+                page_range.append(page.page_number)
+        related_pages = [page for page in pages if page_range and page.page_number in range(min(page_range), max(page_range) + 1)]
+        return cls(related_pages) if related_pages else None
+    
+    def __repr__(self):
+        return f'<{self.__class__.__name__}>'
+
+class ReportOutline:
+
+    title_regex = r''
+    
+    def __init__(self, outline):
+        self.pages = outline
+    
+    @classmethod
+    def create(cls, outline):
+        fail_conditions = {
+            isinstance(outline, Outline) is False: lambda err_msg: TypeError(err_msg + f'argument must be an Outline instance.'),
+            not any(outline.pages): lambda err_msg: ValueError(err_msg + f'outline instance must have at least one page.'),
+            re.search(r'Global|Local search', outline.title) is None and re.search(cls.title_regex, outline.title, flags=re.IGNORECASE) is None: lambda err_msg: ValueError(err_msg + f'outline title: {outline.title} does not match with: title_regex {cls.title_regex}.'),
+        }
+        create_failed = fail_conditions.get(True, False)
+        if create_failed:
+            raise create_failed(f'Failed to initialise {cls.__name__} instance.')
+        return cls(outline)
+
+    @property
+    def pages(self):
+        return self._pages
+
+    @pages.setter
+    def pages(self, outline):
+        self._pages = [page for page in outline.pages if page]
+    
+    @property
+    def from_page(self):
+        return min([page.page_number for page in self.pages])
+    
+    @property
+    def to_page(self):
+        return max([page.page_number for page in self.pages])
+    
+    def __repr__(self):
+        return f'<{self.__class__.__name__} p.{self.from_page} - {self.to_page}>'
 

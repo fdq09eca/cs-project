@@ -32,16 +32,3 @@ class AnnualReport(PDF):
         kams = [audit_report.kams for audit_report in audit_reports if audit_reports and audit_report.kams]
         return kams
 
-if __name__ == "__main__":
-    query = HKEX_API()
-    urls = [data.file_link for data in query.get_data()]
-    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0721/2020072100713.pdf']
-    err_url = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0721/2020072100713.pdf'
-    idx = urls.index(err_url)
-    urls = urls[idx:]
-    for url in urls:
-        print(url)
-        annual_report = AnnualReport(src = url)
-        print(annual_report.auditors)
-        print(annual_report.kams)
-    
