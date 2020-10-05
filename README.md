@@ -4,8 +4,11 @@ This project is requested by [Chong Sing Holding FinTech Group Limited](http://w
 
 ## Aims
 
-**The final product should be a database or a `.csv` which reflect the overall KAMs occurrence and update daily.**
+The final product is to record the annual report data and store the fetched data to a database, ideally automate the task. 
+Data in interested: 
+- audit firm, KAMs, representation currency, currency unit, and others...
 
+## Introduction
 The project is built with the OOP paradiam.
 - the BaseClass is `pdf.py` which handles:
   - searching outline
