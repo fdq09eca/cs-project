@@ -1,4 +1,4 @@
-# Chong Sing Web scraping project
+# Chong Sing project
 
 This project is requested by [Chong Sing Holding FinTech Group Limited](http://www.csfgroup.com/).
 
