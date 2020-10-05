@@ -112,7 +112,7 @@ The class is for obtaining data from HKEX endpoint.
 
 #### Caveat
 - This class is under development.
-- Not every Audit remuneration is in the form of table, some maybe in text.
+- Not every Audit remuneration is in the form of table, some maybe in form of text.
   - Having said that, using `pandas` is a good strategy, since there is `Series.str.extract`
 - Sometime parsed table's number are separated, sticked with the items description text and no with the currency columns.
   - **Critical**. the number must not be wrong!
