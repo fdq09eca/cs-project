@@ -24,7 +24,7 @@ The project is built with the OOP paradiam.
     - kam keywords
 - the `annual_report` is using the composition of the lower level classes such as `IndependentAuditReport`, and `CorporateGovReport`.
 
-## Struture
+## Structure
 the workflow is the following:
 1. obtain data from HKEX website by using HKEX endpoint.
    1. HKEX endpoint will also provide other revelent data e.g.`upload date` , `stock code`, `news id`
