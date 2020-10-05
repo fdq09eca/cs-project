@@ -42,6 +42,7 @@ class PDF:
     @property
     def pypdf_reader(self):
         pdf_obj = self.pdf_obj
+        src = self.src
         if type(pdf_obj) is str and os.path.isfile(pdf_obj):
             pdf_obj = open(src, 'rb')
         return PyPDF2.PdfFileReader(pdf_obj, strict=False)

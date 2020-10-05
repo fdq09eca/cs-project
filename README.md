@@ -4,182 +4,140 @@ This project is requested by [Chong Sing Holding FinTech Group Limited](http://w
 
 ## Aims
 
-> The final product should be a database or a `.csv` which reflect the overall KAMs occurrence and update daily.
+**The final product should be a database or a `.csv` which reflect the overall KAMs occurrence and update daily.**
 
-1. Get the listed companies' annual report from [hkexnews](https://www.hkexnews.hk/) daily
-2. Save the annual report into folders with respect to the firm of independent auditor report, the following firms are in particular interested:
+The project is built with the OOP paradiam.
+- the BaseClass is `pdf.py` which handles:
+  - searching outline
+  - spliting columns
+    - assumption there are only left and right columns
+  - croping section
+    - more work need to do to complete this function, (should also make use of `df_bold_text`)
+- with the BaseClass development, the `audit_report` is able to produce the following data
+  - the auditor name
+    - direct searched auditor
+  - the KAM
+    - kam sentence is not nesscarily cleaned.
+    - kam keywords
+- the `annual_report` is using the composition of the lower level classes such as `IndependentAuditReport`, and `CorporateGovReport`.
 
-   1. Big4
-      1. Deloitte
-      2. Ernst & Young
-      3. KPMG
-      4. PwC
-   2. Selected secondary accounting firms
-      1. TBC
-   3. Others
+## Struture
+the workflow is the following:
+1. obtain data from HKEX website by using HKEX endpoint.
+   1. HKEX endpoint will also provide other revelent data e.g.`upload date` , `stock code`, `news id`
+2. read data by `PDF` class
+3. produce report or page in interest with other composition class using as `IndependentAuditReport`, and `CorporateGovReport`.
+4. all composition classes will be included in the final `AnnualReport` class.
+   1. e.g.: `AnnualReport.audit_reports`, `AnnualReport.corp_gov_reports` 
+5. load it to `DataBase`
+   1. DataBase should have the following tables and variables:
+      1. AnnualReport (main_table)
+         1. `news_id`
+         2. `stock_code`
+         3. `company_name`
+         4. `upload_date`
+         5. `file_link`
+      2. Auditor: fk: `news_id` m:1 relation
+         1. auditors m:1 relation
+      3. KAM, fk: `news_id`,  m:1 relation 
+         1. kam_sentences m:1 relation
+         2. kam_tags m:1 relation
+      4. AuditFee, fk: `new_id`, 1:1 relation 
+         1. currency_code (3digit) 1:1 relation
+         2. unit 1:1 relation
+         3. total_fee 1:1 relation
 
-3. Search in the independent auditor report for the Key Audit Matters (KAMs).
-   1. TBC
-4. Build a database for recording the listed company and the its mentioned KAMs.
-5. Schedule the program to run and update the database daily.
-6. Email related people after the completion.
+### PDF, Page, Sections, Bilingual Page
+They are the baseclass for the annual report
+- `Page` is the BaseClass for `Sections`, `BilingualPage`
+- `Page` will automatically 'remove noise' when it is generated i.e. trim of the non-main-text area e.g. decarative edge text or non-textual-area
+- 
 
-## Pseudocode
+#### Caveat
 
-- [ ] Connect to Heroku database
-- [ ] schedule the script (optional? heroku has this simple scheduler)
+- `Page.remove_noise()` is a bit buggy, due to the nature of various `.pdf`, some file have the `df_char.x1 > page.width` problem, i.e. when `Page.remove_noise()` is called and the page has a abnormal `x1`, error occurs. I suppress this error in the `remove_noise` method, see below, it is the best I have got so far, it avoids the page.width problem, see below.
 
-### get_data()
-
-- [x] get data from hkex
-- [x] get the annual report `pdf`
-
-### get_audit_firm()
-
-- [x] if outline available
-  - [x] get the outline title and page range (from page, to page)
-- [x] else:
-  - [x] for each page
-    - [x] append page number to a list if searched `independent auditor report` on that page
-- [x] get the page range (from-to) of `independent auditor report`
-- [x] get the last page of the auditor report
-- [x] **get audit firm_name**
-- [ ] save the `pdf` to respective audit firm folder
-
-### get_kam_occurrence()
-
-**_get selected kam: TBC_**
-
-- [ ] create dictionary: `{kam : 0 for kam in KAMs}`
-- [ ] for page in auditor_report:
-  - [ ] for kam in KAMs:
-    - [ ] if fuzzy string match selected kam:
-      - [ ] dictionary['kam'] += 1
-
-### add_to_db()
-
-- [ ] data to db
-
-- data should have
-
-  - date
-  - stock number
-  - stock name
-  - auditor firm name
-  - **each** KAM occurrences
-
-- [ ] insert data to heroku database
-
-### email_notify()
-
-- [ ] write the web-scraping result to a `.csv`
-- [ ] write the caution data to another `.csv`
-  - [ ] include link for further investigation
-- [ ] attach `.csv` and email to the related ppl
-
-## Some Thoughts
-
-- Using [Heroku](https://dashboard.heroku.com/) for the scheduling and database (PostgradSQL)
-- Use [Pypdf2](https://pythonhosted.org/PyPDF2/) for the pdf mining and string extraction.
-- There are another choices e.g. [pdfminer](https://github.com/euske/pdfminer/) but that would be too complicated and hard for maintenance since the authors has stop the support of the module.
-
-## Difficulties
-
-**The most difficult part of this project is PDF mining.** The annual report is `.pdf` but it may not be written in format which pose difficulties in the programming process.
-
-- Annual report format is not consistent. Although most are `.pdf`, there are occasionally in other format e.g. `html` (see [SaSa](https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0717/2020071700552.htm))
-
-- Some `.pdf` is scanned document i.e. text search is impossible, see [here](https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0731/2020073100689.pdf)
-
-- Extracted text may not be parsed correctly, which posed difficulties in text searching.
-
-## References
-
-### Email and Scheduling
-
-- [How to Web Scrape in the Cloud (Easy Way)](https://www.youtube.com/watch?v=qquCAgwvL8Q)
-- [how to execute a python script every Monday or every day](https://www.youtube.com/watch?v=Gs5jGDROx1M)
-- [APS](https://apscheduler.readthedocs.io/en/3.0/userguide.html#code-examples)
-- [Introduction to Dash Plotly - Data Visualization in Python](https://www.youtube.com/watch?v=hSPmj7mK6ng)
-- [pdfplumber](https://github.com/jsvine/pdfplumber)
-### Database
-
-- [Python Postgrad SQL](https://www.postgresqltutorial.com/postgresql-python/connect/)
-- [How to Connect to a Postgres Database in Python](https://www.youtube.com/watch?v=OOSl2jeAA5U)
-
-## Notable
-
-- Query over 1 year is not allowed. hkex API allows single stock for over 1 year query, not overall.
-
-## Problem of get_auditor()
-
-- sometime it might not extract the txt correctly, e.g. `PricewaterhouseCoopersCerti˜ed`, `KPMGCerti˜ed`, `Deloitte Touche TohmatsuCerti˜ed`
-- trim the auditor output
-- return just space characters e.g. `audit firm: found on page: 177`
-- some company employee two auditors e.g. `audit firm: APPOINTMENT OF EXTERNAL AUDITOR AND INTERNAL CONTROL CONSULTANTOn 24 April 2019, the Board announced that, the Board resolved to appoint Ernst & Young Hua Ming as the auditor of the Company for the year 2019 and resolved to appoint BDO China Shu Lun Pan found on page: 127`
-- other, see below
-
+```python
+def remove_noise(self) -> None:
+    bbox_main_text = self.bbox_main_text
+    if bbox_main_text is None: return None
+    try:
+        page = self.page.crop(bbox_main_text, relative=False)
+    except Exception as e:
+        print(e)
+        x0, top, x1, bottom = bbox_main_text
+        bbox_main_text = x0, top, self.page.width, bottom
+        page = self.page.crop(bbox_main_text, relative=False)
+    self.page = page
 ```
-audit firm:  On 22 March 2019, the Audit Committee convened an on-site meeting, at which the Audit Committee considered and approved the following resolutions:(1) the resolution on the 2018 Annual Report of the Company and its summary and the H Shares results announcement was considered and approved;(2) the resolution on the 2018 audited financial report of the Company was considered and approved;(3) the resolution on the 2018 Audit Report on the financial report of the Company was considered and approved;(4) the resolution on the 2018 Internal Control Evaluation Report of the Company was considered and approved;(5) the resolution on the 2018 Internal Control Audit Report of the Company was considered and approved;(6) the resolution on the performance of functions by the Audit Committee of the Company for the year 2018 was considered and approved;(7) the resolution on the payment of the audit fee for 2018 financial reports to Shinewing found on page: 141
-```
+- I have made diffferent attempts in a bid to suppress this error, including `df_charx1 < page.width`; or suppressing it in the `bbox_main_text` property. But all theseattempts fall short, and have a notable side effect:
+  - It reduces the `Page.page.width` when the `remove_noise` method is called.
+  - It is frequently seens in handling bilingual and bi-columns page.
 
-```
-audit firm: 8 million was paid/payable to Deloitte  ed  found on page: 91
-```
 
-```
-search by page!
-audit firm: The Board has delegated to the Audit and Risk Management Committee with written terms of reference prepared according to the relevant requirements of the Articles of Association, the Company Law of the PRC, the Listing Rules, A Guide for Effective Audit Committees published by the Hong Kong Institute of found on page: 136
-```
+#### Development
+- `Page.get_section` method currently only consider `Page.df_section_text`
+  - should also consider `Page.df_bold_text` when result is not found
+  - [ ] add `next_top` to `Page.df_bold_text` as if `Page.df_section_text`
 
-### Strategy
+### HKEX_API
+The class is for obtaining data from HKEX endpoint.
 
-- [x] Capture error type
-   1. create a `.csv` for capture the result. with the following variable
-      1. stock number
-      2. stock name
-      3. auditor name result
-      4. from_page
-      5. to_page
-      6. link
-      7. page_text.
-1. improve `get_pageRange(.)` or `get_pages_by_page_search(.)` impose a condition that the `pageRange list` element (`int`) should not be too far from each other.
-- [x] improve the regex pattern, e.g. `r'.*\.((?P<auditor>[A-Z].*?):?( LLP)?)[ ?Certified ]?Public Accountants'`
-  - [ ] there are **Chartered Accountants** after the firm title
-3. use fuzzy string match to boost the accuracy
-4. use Logistic regression or NLP to learn..
-5. use `pdfplumber` which text extraction feature has a better performance
-   1. `pdf_plumber` has a very complete logging.. so not root logging anymore..:(
-```
-import requests
-import pdfplumber
-from io import BytesIO
+#### Caveat 
+- maximum obtain one year data for all stock code
+- over one year query must include stock code
 
-url = "https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0326/2020032600623.pdf"
-rq = requests.get(url)
-pdf = pdfplumber.load(BytesIO(rq.content))
-page = pdf.pages[53]
-print(page.extract_text())
-```
-6. build a alphabetic hash table i.e. `memorised_firm[a-z]  = [...]`
-```
+#### Development
+- Completed
 
-def normal_str(found_str):
-  return len(found_str) < 50
+### IndependentAuditReport
+- The class is composited by `Auditor` and `KeyAuditMatter`.
+- It is for the auditor and key audit matter in the auditor report
 
-def fuzzy_check(found_str):
-  for idx in memorised_firm.keys():
-    result = [fuzzy_match(firm, found_str) for firm in memorised_firm[idx] if fuzzy_match(firm, found_str) > threhold]
-    return max(result, percentage)
+#### Caveat
+- `KeyAuditMatter` is using a list of keywords to extract the key audit matter sentences.
+- KeyAuditMatter is not `Discliamer of Opinion`, which is another frequent title in Independent auditor report.
 
-if found_str:
-  if not normal_str(found_str):
-    return fuzzy_check(found_str)
-  idx = found_str[0]
-  if found_str not in memorised_firm[idx]:
-    memorised_firm[idx].append(found_str)
-  return found_str
-```
+#### Development
+- [ ] load `kam_keywords` to DataBase for future ease of update.
+- [ ] load `validate_auditor` to DataBase for unifying the frequent auditor.
+- [ ] `KeyAuditMatter` currently only search for the featureed text.
 
-text_case
-`https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0824/2020082401066.pdf`adadsfsadfadsf
+### CorporateGovReport
+- This class is composited by `AuditFee` and `AuditFeeTable`
+- It is for the `audit_fee`, and `currency`, and `currency_unit` 
+
+#### Caveat
+- This class under development.
+- Not every Audit remuneration is in the form of table, some maybe in text.
+  - Having said that, using `pandas` is a good strategy, since there is `Series.str.extract`
+- Sometime parsed table's number are separated, sticked with the items description text and no with the currency columns.
+  - **Critical**. the number must not be wrong!
+  - see the following for example:
+    - https://www1.hkexnews.hk/listedco/listconews/gem/2020/0929/2020092901098.pdf
+    - https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0929/2020092900604.pdf
+
+#### Development
+This class development is challenging and could not be done in a short time. However, the `currency` and there `unit` is relatively easy.
+- [ ] get the `currency` and `unit` first
+- [ ] find a way to reassemble the number which may potentially fall into the text columns.
+
+### DataBase
+The class is built for storing the data
+
+#### Caveat
+- The choice of DataBase is not yet confirmed, but likely be Heroku i.e. postgradSQL
+- The local option maybe SQLite
+
+#### Development
+- [ ] locally gen a SQLite DataBase for Testing
+
+### Worker
+The class will be built for automating the work.
+
+#### Caveat
+- it is not confirmed that use be on heroku or locally done
+- heroku option may need more time for documentation reading
+
+#### Development
+- [ ] try to do it locally first
