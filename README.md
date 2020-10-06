@@ -87,7 +87,7 @@ def remove_noise(self) -> None:
 The class is for obtaining data from HKEX endpoint.
 
 #### Caveat 
-- maximum obtain one year data for all stock code
+- maximum one year data for all stock code
 - over one year query must include stock code
 
 #### Development
