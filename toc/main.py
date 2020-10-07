@@ -12,7 +12,7 @@ def main():
         print(url)
         annual_report = AnnualReport(src = url)
         print(annual_report.auditors)
-        print(annual_report.kams)
+        print(annual_report.kams[0].kams)
         # try:
         #     print(url)
         #     annual_report = AnnualReport(src = url)

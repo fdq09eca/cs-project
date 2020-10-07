@@ -564,8 +564,8 @@ class PageWithSection:
         for page in pages:
             if page.df_feature_text.empty:
                 continue
-            df_kam_feature_text = page.df_feature_text[page.df_feature_text.text.str.contains(cls.section_regex, flags=re.IGNORECASE)]
-            if not df_kam_feature_text.empty:
+            dfs_feature_text = page.df_feature_text[page.df_feature_text.text.str.contains(cls.section_regex, flags=re.IGNORECASE)]
+            if not dfs_feature_text.empty:
                 page_range.append(page.page_number)
         related_pages = [page for page in pages if page_range and page.page_number in range(min(page_range), max(page_range) + 1)]
         return cls(related_pages) if related_pages else None

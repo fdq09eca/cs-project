@@ -58,19 +58,7 @@ class KeyAuditMatter(PageWithSection):
     
     def __init__(self, kam_pages):
         super().__init__(kam_pages)
-    
-    @classmethod
-    def retrieve(cls, pages):
-        kam_page_range = []
-        for page in pages:
-            if page.df_feature_text.empty:
-                continue
-            df_kam_feature_text = page.df_feature_text[page.df_feature_text.text.str.contains(cls.section_regex, flags=re.IGNORECASE)]
-            if not df_kam_feature_text.empty:
-                kam_page_range.append(page.page_number)
-        kam_pages = [page for page in pages if kam_page_range and page.page_number in range(min(kam_page_range), max(kam_page_range) + 1)]
-        return cls(kam_pages) if kam_pages else None
-    
+        
 
     @property
     def kams(self) -> list:
@@ -118,7 +106,7 @@ class KeyAuditMatter(PageWithSection):
         return df_feature_text
     
     def __repr__(self) -> str:
-        return f'<{self.__class__.__name__} {self.pages}> - {self.tags}'
+        return f'<{self.__class__.__name__} {self.pages} - {self.tags}>'
     
 
 
