@@ -5,9 +5,17 @@ import pandas as pd, re
 from helper import flatten
 
 class AnnualReport(PDF):
-    def __init__(self, src):
+    def __init__(self, src, news_id, date_time, stock_code, stock_name, title, long_text, file_link):
+    # def __init__(self, src):
         super().__init__(src)
-        
+        self.news_id = news_id
+        self.date_time = date_time
+        self.stock_code = stock_code
+        self.stock_name = stock_name
+        self.title = title
+        self.long_text = long_text
+        self.file_link = file_link
+    
     @PDF.src.setter
     def src(self, src):
         PDF.src.fset(self, src)

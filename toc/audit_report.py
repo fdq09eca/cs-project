@@ -61,13 +61,13 @@ class KeyAuditMatter(PageWithSection):
         
 
     @property
-    def kams(self) -> list:
+    def items(self) -> list:
         df_kams = self.df_kams
         return df_kams.text.to_list() if not df_kams.empty else []
 
     @property
     def tags(self) -> set:
-        kams = self.kams
+        kams = self.items
         keywords = self.keywords
         tags = {keyword for keyword in keywords if any(re.search(keyword, kam, flags=re.IGNORECASE) for kam in kams)}
         return sorted(tags)

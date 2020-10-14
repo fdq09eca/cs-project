@@ -9,8 +9,10 @@ from helper import flatten
 import pandas as pd
 import random
 
-Base = declarative_base()
-
+name = 'foo'
+path = f'sqlite:///{name}.db'
+engine = create_engine(path, echo=True)
+Base = declarative_base(bind = engine)
 
 class AnnualReport(Base):
     __tablename__ = 'annual_report'
@@ -24,7 +26,8 @@ class AnnualReport(Base):
     file_link = Column(String, nullable=False)
     created_on = Column(DateTime, default=datetime.now),
     updated_on = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    independent_audit_report = relationship('IndependentAuditReport', uselist=False, backref='aunnal_report')  # one to one
+    # audit_firms = relationship('Auditor', backref='annual_report')  # one to many
+    # kams = relationship('KeyAuditMatter', backref='annual_report') # one to many
 
     def __repr__(self):
         return f"<{self.__class__.__name__}({self.news_id}, {self.date_time}, {self.stock_code}, {self.file_link})>"
@@ -34,10 +37,8 @@ class IndependentAuditReport(Base):
     __tablename__ = 'independent_audit_report'
     id = Column(Integer, primary_key=True)
     news_id = Column(Integer, ForeignKey('annual_report.news_id'))
-    audit_firm = relationship(
-        'Auditor', backref='indepentent_auditor_report')  # one to many
-    kams = relationship(
-        'KeyAuditMatter', backref='indepentent_auditor_report')  # one to many
+    audit_firm = relationship('Auditor', backref='indepentent_auditor_report')  # one to many
+    kams = relationship('KeyAuditMatter', backref='indepentent_auditor_report')  # one to many
 
     def __repr__(self):
         return f"<{self.__class__.__name__}({self.id}, {self.annual_report_id})>"
@@ -46,8 +47,7 @@ class IndependentAuditReport(Base):
 class Auditor(Base):
     __tablename__ = 'auditor'
     id = Column(Integer, primary_key=True)
-    independent_audit_report_id = Column(
-        Integer, ForeignKey('independent_audit_report.id'))
+    news_id = Column(Integer, ForeignKey('independent_audit_report.news_id'))
     name = Column(Text, nullable=False)
 
     def __repr__(self):
@@ -57,10 +57,9 @@ class Auditor(Base):
 class KeyAuditMatter(Base):
     __tablename__ = 'key_audit_matter'
     id = Column(Integer, primary_key=True)
-    independent_audit_report_id = Column(
-        Integer, ForeignKey('independent_audit_report.id'))
+    news_id = Column(Integer, ForeignKey('independent_audit_report.news_id'))
     item = Column(Text)
-    tag = Column(String)
+    # tag = Column(String)
 
     def __repr__(self):
         return f'<{self.__class__.__name__}({self.id}, {self.independent_audit_report_id}, {self.item}, {self.tag})>'
@@ -106,8 +105,7 @@ class DataBase:
 
 
     @classmethod
-    def init(cls, Base, name='foo'):
-        path = f'sqlite:///{name}.db'
+    def init(cls, Base=Base, path=path):
         engine = create_engine(path, echo=True)
         Base.metadata.create_all(engine)
         cls.insert_currencies_to_db(engine)
@@ -176,10 +174,14 @@ class DataBase:
     def add(self, instance):
         with self.Session() as session:
             session.add(instance)
+        
+    def add_all(self, iterables_instance):
+        with self.Session() as session:
+            session.add_all(iterables_instance)
 
 
 if __name__ == "__main__":
-    db = DataBase.init(Base)
+    db = DataBase.init()
     # kam_keywords = KeyAuditMatterKeywords(keyword='TESTING!!')
     # db.add(kam_keywords)
     with db.Session() as session:
