@@ -80,7 +80,7 @@ class KeyAuditMatter(PageWithSection):
         return dfs_feature_text[kam_cond]
 
     @property
-    def dfs_feature_text(self):
+    def dfs_feature_text(self) -> pd.DataFrame:
         df = pd.DataFrame()
         for page in self.pages:
             df_feature_text = page.df_feature_text

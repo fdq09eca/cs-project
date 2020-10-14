@@ -34,3 +34,8 @@ if __name__ == '__main__':
     print(f"addresses: {[address.email for address in user.addresses]}")
     print(f"c.user.name: {c.user.name}")
     print(f"b.user.name: {b.user.name}")
+from database import Base, DataBase
+import pandas as pd
+db = DataBase.init(Base)
+sql_df = pd.DataFrame(pd.read_sql("select * from key_audit_matter_keywords where keyword like 'v%'", con = db.engine))
+print(sql_df)

@@ -159,7 +159,7 @@ if __name__ == '__main__':
     # https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0929/2020092900604.pdf #concat number
     query = HKEX_API()
     urls = [data.file_link for data in query.get_data()]
-    urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0923/2020092300374.pdf']
+    # urls = ['https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0923/2020092300374.pdf']
     for url in urls:
         # url = data.file_link
         # url, p = 'https://www1.hkexnews.hk/listedco/listconews/sehk/2020/0721/2020072100713.pdf', 61
@@ -174,9 +174,13 @@ if __name__ == '__main__':
             continue
         if not corp_gov_report.audit_fee:
             continue
-        page = corp_gov_report.audit_fee.pages[0]
-        sec = corp_gov_report.audit_fee.sections[0]
-        table = corp_gov_report.audit_fee.tables[0]
+        try:
+            page = corp_gov_report.audit_fee.pages[0]
+            sec = corp_gov_report.audit_fee.sections[0]
+            table = corp_gov_report.audit_fee.tables[0]
+        except Exception as e:
+            print(e)
+            continue
         try:
             print(table.df_clean_table)
         except IndexError:
