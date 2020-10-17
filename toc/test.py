@@ -27,11 +27,13 @@ if __name__ == '__main__':
     user = User(name = 'Chris')
     session.add(user)
     session.commit()
+    
     c = Address(email = '123@gmail.com',user_id=user.id)
     b = Address(email = 'abc@gmail.com',user_id=user.id)
     session.add(c)
     session.add(b)
     session.commit()
+    
     print(f"addresses: {[address.email for address in user.addresses]}")
     print(f"c.user.name: {c.user.name}")
     print(f"b.user.name: {b.user.name}")

@@ -58,7 +58,12 @@ class KeyAuditMatter(PageWithSection):
     
     def __init__(self, kam_pages):
         super().__init__(kam_pages)
-        
+    
+    @classmethod
+    def get_tags(cls, string) -> list:
+        keywords = cls.keywords
+        tags = {keyword for keyword in keywords if re.search(keyword, string, flags=re.IGNORECASE)}
+        return sorted(tags)
 
     @property
     def items(self) -> list:
@@ -72,7 +77,7 @@ class KeyAuditMatter(PageWithSection):
         tags = {keyword for keyword in keywords if any(re.search(keyword, kam, flags=re.IGNORECASE) for kam in kams)}
         return sorted(tags)
 
-
+ 
     @property
     def df_kams(self) -> pd.DataFrame:
         dfs_feature_text = self.dfs_feature_text

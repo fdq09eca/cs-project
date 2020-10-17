@@ -9,8 +9,9 @@ from helper import flatten
 import pandas as pd
 import random
 
-name = 'foo'
+name = 'foo2'
 path = f'sqlite:///{name}.db'
+# path = 'sqlite:///:memory:'
 engine = create_engine(path, echo=True)
 Base = declarative_base(bind = engine)
 
@@ -24,48 +25,44 @@ class AnnualReport(Base):
     title = Column(String, nullable=False)
     long_text = Column(String, nullable=False)
     file_link = Column(String, nullable=False)
-    created_on = Column(DateTime, default=datetime.now),
-    updated_on = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    # audit_firms = relationship('Auditor', backref='annual_report')  # one to many
-    # kams = relationship('KeyAuditMatter', backref='annual_report') # one to many
+    # created_on = Column(DateTime, default=datetime.now),
+    # updated_on = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    audit_firms = relationship('Auditor', backref='annual_report')  # one to many
+    kams = relationship('KeyAuditMatter', backref='annual_report') # one to many
 
     def __repr__(self):
         return f"<{self.__class__.__name__}({self.news_id}, {self.date_time}, {self.stock_code}, {self.file_link})>"
 
 
-class IndependentAuditReport(Base):
-    __tablename__ = 'independent_audit_report'
-    id = Column(Integer, primary_key=True)
-    news_id = Column(Integer, ForeignKey('annual_report.news_id'))
-    audit_firm = relationship('Auditor', backref='indepentent_auditor_report')  # one to many
-    kams = relationship('KeyAuditMatter', backref='indepentent_auditor_report')  # one to many
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__}({self.id}, {self.annual_report_id})>"
-
-
 class Auditor(Base):
     __tablename__ = 'auditor'
     id = Column(Integer, primary_key=True)
-    news_id = Column(Integer, ForeignKey('independent_audit_report.news_id'))
+    news_id = Column(Integer, ForeignKey('annual_report.news_id'))
     name = Column(Text, nullable=False)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__}({self.id}, {self.independent_audit_report_id}, {self.name})>"
+        return f"<{self.__class__.__name__}({self.id}, {self.news_id}, {self.name})>"
 
 
 class KeyAuditMatter(Base):
     __tablename__ = 'key_audit_matter'
     id = Column(Integer, primary_key=True)
-    news_id = Column(Integer, ForeignKey('independent_audit_report.news_id'))
+    news_id = Column(Integer, ForeignKey('annual_report.news_id'))
     item = Column(Text)
-    # tag = Column(String)
+    tags = relationship('KeyAuditMatterTag', backref='kam_item')
 
     def __repr__(self):
-        return f'<{self.__class__.__name__}({self.id}, {self.independent_audit_report_id}, {self.item}, {self.tag})>'
+        return f"<{self.__class__.__name__}({self.id}, {self.news_id} {self.item})>"
 
 
+class KeyAuditMatterTag(Base):
+    __tablename__ = 'key_audit_matter_tag'
+    id = Column(Integer, primary_key=True)
+    kam_id = Column(Integer, ForeignKey('key_audit_matter.id'))
+    tag = Column(String)
 
+    def __repr__(self):
+        return f'<{self.__class__.__name__}({self.id}, {self.kam_id}, {self.tag})>'
 
 class KeyAuditMatterKeywords(Base):
     __tablename__ = 'key_audit_matter_keywords'
@@ -138,6 +135,7 @@ class DataBase:
             session.commit()
         except:
             session.rollback()
+            print('SESSION ROLLBACK!!')
             raise
         finally:
             session.close()
@@ -182,35 +180,4 @@ class DataBase:
 
 if __name__ == "__main__":
     db = DataBase.init()
-    # kam_keywords = KeyAuditMatterKeywords(keyword='TESTING!!')
-    # db.add(kam_keywords)
-    with db.Session() as session:
-        # print(session.query(KeyAuditMatterKeywords).all())
-        currencies = session.query(CommonCurrency).all()
-        for c in currencies:
-            print(c.id, c.code)
-    #     session.add(kam_keywords)
-
-    # sql_df = pd.DataFrame(pd.read_sql("select * from key_audit_matter_keywords", con=db.engine))
-    # print(sql_df)
-    # sql_df = pd.DataFrame(pd.read_sql(
-    #     "select * from common_currency", con=db.engine))
-    # print(sql_df)
-    
-
-    # print(q_results)
-    # sql_results = engine.execute('select * from key_audit_matter_keywords').fetchall()
-    # print(len(sql_results))
-    # for r in sql_results:
-    #     print(r.keyword)
-
-
-# charlie = User(first_name='Charlie')
-# david = User(first_name='David')
-# session.add(charlie)
-# session.add(david)
-# session.commit()
-# users = session.query(User).all()
-# for user in users:
-#     print(f'user.fullname: {user.fullname}')
-# print(f'user.fullname: {user.fullname}')
+    print(db.show_tables())
