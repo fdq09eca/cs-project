@@ -22,3 +22,4 @@ def flatten(li: list) -> list:
     for flattening multiple levels of outlines.
     '''
     return sum(map(flatten, li), []) if isinstance(li, list) else [li]
+

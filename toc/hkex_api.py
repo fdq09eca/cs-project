@@ -1,8 +1,9 @@
 import json, requests, datetime, html, logging
 from typing import Generator
 from collections import namedtuple
+from logger import Logger
 
-class HKEX_API:
+class HKEX_API(Logger):
     
     '''
     usage:
@@ -24,11 +25,11 @@ class HKEX_API:
 
     
     def __init__(self, from_date=None, to_date=None, stock_id=None, doc='annual_report'):
+        super().__init__()
         self.from_date = from_date
         self.to_date = to_date
         self.stock_id = stock_id
         self.doc = doc
-    
     
     @property
     def from_date(self) -> str:
@@ -39,6 +40,7 @@ class HKEX_API:
     def from_date(self, from_date:str) -> str:
         from_date = from_date or HKEX_API.n_yearsago(n=1)
         self._from_date = self.date_fmt_validator(from_date)
+        self.logger.info(f'{self}.from_date set to {self._from_date}')
     
     
     @property
@@ -49,6 +51,16 @@ class HKEX_API:
     def to_date(self, to_date:str) -> str:
         to_date = to_date or HKEX_API.today()
         self._to_date = self.date_fmt_validator(to_date)
+        self.logger.info(f'{self}.to_date set to {self._to_date}')
+    
+    @property
+    def doc(self) -> str:
+        return self._doc
+    
+    @doc.setter
+    def doc(self, doc) -> str:
+        self._doc = doc
+        self.logger.info(f'{self}.doc set to {self._doc}')
 
     @property
     def payloads(self) -> dict:
@@ -60,6 +72,7 @@ class HKEX_API:
 
         if HKEX_API.over_a_year(from_date=from_date) and stock_id is None:
             ytd = HKEX_API.n_yearsago(1)
+            self.logger.error(f'Query over a year must specify stock_id e.g "1", global query can only from "{ytd}"')
             raise ValueError(f'Query over a year must specify stock_id e.g "1", global query can only from "{ytd}"')
 
         payloads = {
@@ -96,6 +109,7 @@ class HKEX_API:
             datetime.datetime.strptime(date_str, HKEX_API.dt_fmt)
             return date_str
         except ValueError as e:
+            self.logger.error(f'{e}, {date_str} format is not {HKEX_API.dt_fmt}')
             raise ValueError(f'{e}, {date_str} format is not {HKEX_API.dt_fmt}')
     
 
@@ -151,10 +165,14 @@ class HKEX_API:
         finally:
             return dt_yearsago.strftime(HKEX_API.dt_fmt)
     
+    @Logger.track
     def get_data(self) -> list:
-        return HKEX_API.call_api(endpoint=HKEX_API.endpoint, payloads=self.payloads)
+        data = HKEX_API.call_api(endpoint=HKEX_API.endpoint, payloads=self.payloads)
+        self.logger.info(f'{len(data)} row of data from {self.from_date} to {self.to_date}')
+        return data
     
-
+    def __repr__(self):
+        return f'{self.__class__.__name__}'
 if __name__ == '__main__':
     # pass
     # print(_get_data())
@@ -165,20 +183,20 @@ if __name__ == '__main__':
     print(query.doc)
     print(query.payloads['t2code'])
     print(len(query.get_data()))
-    print(len([i for i in query.data]))
+    print(len([i for i in query.get_data()]))
     # query = HKEX_API(from_date=n_yearsago(n=1), to_date=today(), doc='half_year_report') 
     print('>>>>>>')
     query.doc = 'half_year_report'
     print(query.doc)
     print(query.payloads['t2code'])
     print(len(query.get_data()))
-    print(len([i for i in query.data]))
+    print(len([i for i in query.get_data()]))
     print('>>>>>>')
     print(query.from_date)
     query.from_date = HKEX_API.yesterday()
     print(query.from_date)
     print(query.payloads['fromDate'])
     print(len(query.get_data()))
-    print(len([i for i in query.data]))
+    print(len([i for i in query.get_data()]))
     # print(query.data)
     # query.data = 'hehe'

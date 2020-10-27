@@ -3,14 +3,16 @@ from typing import Union, Pattern, Match
 from itertools import zip_longest
 from helper import flatten, utf8_str, consecutive_int_list
 import pandas as pd, requests, re, logging, os, pdfplumber, PyPDF2
+from logger import Logger
 
-
-class PDF:
+class PDF(Logger):
     def __init__(self, src):
+        super().__init__()
         self.src = src
-    
+
     @classmethod
     def create(cls, src):
+        m_logger = super().get_module_logger()
         src_types = {
            type(src) is str and cls.is_url(src) : lambda: cls.byte_obj_from_url(src),
            type(src) is str and os.path.isfile(src) : lambda: open(src, 'rb'),
@@ -19,6 +21,7 @@ class PDF:
         pdf_obj = src_types.get(True, lambda: None)()
         if pdf_obj and pdf_obj.read().startswith(b'%PDF'):
             return cls(src)
+        m_logger.warning(f'{src} is not a valid pdf src file.')
         return None
 
     @property
@@ -30,6 +33,7 @@ class PDF:
         self._pdf_obj = self.byte_obj_from_url(src) or src
         self._pb_pdf = pdfplumber.open(self._pdf_obj)
         self._src = src
+        self.logger.info(f'{self}.src set to {self._src}')
 
     @property
     def pdf_obj(self) -> Union[str, object]:
@@ -59,7 +63,6 @@ class PDF:
     @staticmethod
     def is_url(src: str) -> bool:
         if not isinstance(src, str):
-            logging.warning(f'Input type {type(src)} is not str.')
             return None
         url_regex = re.compile(
             r'^(?:http|ftp)s?://'  # http:// or https://
@@ -115,7 +118,8 @@ class PDF:
         column_types = {'title': str, 'from_page': int, 'to_page': 'Int64'}
         toc = toc.astype(column_types)
         return toc
-
+    
+    @Logger.track
     def get_outline(self, regex: Pattern) -> list:
         '''
         return a list of outline that matches with the regex pattern
@@ -123,18 +127,19 @@ class PDF:
         outlines = self.outlines
         result = [outline for outline in outlines if outlines and re.search(regex, outline.title, flags=re.IGNORECASE)] 
         return result if result else self.search_outline(regex)
-
+    
+    @Logger.track
     def search_outline(self, regex: Pattern, scope=None) -> list:
         pdf = self.pb_pdf
         pages = scope or pdf.pages
         
         matched_page_nums = set()
-        
+
         for p in pages:
             page = Page.create(p)
             if not page or page.df_feature_text.empty:
                 continue
-            print(f'searching page {page.page_number}...')
+            self.logger.debug(f'searching page {page.page_number}...')
             if any(page.df_feature_text.text.str.contains(regex, flags=re.IGNORECASE)):
                 matched_page_nums.add(page.page_number)
         
@@ -152,18 +157,13 @@ class PDF:
         return f'{self.__class__.__name__}(src="{self.src}")'
 
 
-class Page:
-
-    def __init__(self, page):
+class Page(Logger):
+    def __init__(self, page, df_lang=None):
         self.page = page
-        self.df_lang = None
-        # self.remove_noise()
-        # if not self.df_decarative_text.empty:
-        #     self.remove_noise()
+        self.df_lang = df_lang
 
     @classmethod
     def create(cls, page, **kwargs):
-        # return cls(page=page, **kwargs)
         try:
             page = cls(page=page, **kwargs)
             page.df_main_text
@@ -172,6 +172,14 @@ class Page:
         except Exception as e:
             print(f'{cls.__name__}({page}, {kwargs}) instance initalise failed: {e}')
             return None
+    
+    @property
+    def df_lang(self):
+        return self._df_lang
+    
+    @df_lang.setter
+    def df_lang(self, df_lang):
+        self._df_lang = df_lang
 
     @property
     def page_number(self) -> int:
@@ -194,13 +202,9 @@ class Page:
         df = df_langs.get(self.df_lang, df)
         normal_bbx_coord = (df.x0 > 0) & (df.top > 0) & (df.x1 > 0) & (df.bottom > 0)
         normal_x1 = df['x1'] <= self.page.width
-        # within_bbx = normal_bbx_coord & normal_x1
         within_bbx = normal_bbx_coord
         df_char_within_bbox = df[within_bbx]
-        # print(self.page.width)
-        # print(''.join(df[~normal_x1].text.to_list()))
         return df_char_within_bbox
-
 
     @property
     def df_decarative_text(self) -> pd.DataFrame:
@@ -300,7 +304,6 @@ class Page:
                 x1 = [x1, df_feature_text['x1'].max()]                
                 self.df_lang = None
                 return x0, min(top), max(x1), bottom
-                # return x0, min(top), x1, bottom
             self.df_lang = None
             return x0, top, x1, bottom
 
@@ -318,7 +321,7 @@ class Page:
         max_x0 = self.df_title_text.x0.max()
         x0, top, x1, bottom = self.bbox_main_text
         if min_x0 != max_x0 and max_x0 > x0:
-            print(f'There is another colmun divided at {float(max_x0)}.')
+            self.logger.info(f'There is another colmun divided at {float(max_x0)}.')
             return max_x0
         return None
 
@@ -364,13 +367,10 @@ class Page:
 
         sections = []
         for sec in df_section_text.itertuples(index=False):
-            # if sec.next_top > self.bbox_main_text[-1]:
-            #     continue
             sec_bbx = section_bbx(self, sec)
             if not sec_bbx: continue
             section = self.page.crop(sec_bbx, relative=False)
             section = Section.create(section, title=sec.text)
-            # section = self.create_section(sec_bbx, title = sec.text)
             if section:
                 sections.append(section)
         return sections
@@ -611,3 +611,14 @@ class ReportOutline:
     def __repr__(self):
         return f'<{self.__class__.__name__} p.{self.from_page} - {self.to_page}>'
 
+if __name__ == '__main__':
+    pass
+    # from hkex_api import HKEX_API
+    # Logger.show_stream_log()
+    # api_query = HKEX_API()
+    # datas = api_query.get_data()
+    # urls = [data.file_link for data in datas]
+    # bad_urls = [data.file_link for data in datas if not data.file_link.endswith('pdf')]
+    # for url in urls:
+    #     pdf = PDF.create(url)
+    # pdf = PDF.create('/Users/macone/Documents/cs_project/toc/2020073000624.pdf')
